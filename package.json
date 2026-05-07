@@ -1,0 +1,16 @@
+{
+  "name": "deulak-nallak-kiosk",
+  "version": "2.0.0",
+  "description": "들락날락 청소년놀이공간 키오스크 서버 (Supabase 연동)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

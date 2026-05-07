@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>들락날락 — 관리자 패널</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --g1:#1a6b3c;--g2:#2d9d5c;--g3:#e8f5ee;--g4:#f0faf4;
+  --acc:#f59e0b;--acc2:#fef3c7;
+  --red:#dc2626;--red2:#fef2f2;
+  --blue:#1d6fb5;--blue2:#eff6ff;
+  --txt:#111827;--txt2:#6b7280;
+  --bg:#ffffff;--bg2:#f9fafb;--bg3:#f3f4f6;
+  --bd:#e5e7eb;
+  --r:12px;--rs:8px;
+  --sh:0 2px 12px rgba(0,0,0,.08);
+}
+body{font-family:'Noto Sans KR',sans-serif;background:#111827;color:var(--txt);min-height:100vh;}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:260px 1fr;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{background:#1f2937;padding:0;display:flex;flex-direction:column;border-right:1px solid #374151;}
+.sb-hdr{padding:20px 16px;border-bottom:1px solid #374151;}
+.sb-brand{font-family:'Black Han Sans',sans-serif;font-size:20px;color:#fff;letter-spacing:2px;}
+.sb-sub{font-size:11px;color:#9ca3af;margin-top:3px;}
+.sb-admin{font-size:11px;color:#f59e0b;margin-top:6px;font-weight:600;}
+.clk-box{padding:14px 16px;border-bottom:1px solid #374151;}
+.clk-t{font-size:28px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:2px;}
+.clk-d{font-size:11px;color:#9ca3af;margin-top:3px;}
+
+/* CONNECTION */
+.conn-row{padding:10px 16px;border-bottom:1px solid #374151;display:flex;align-items:center;gap:6px;font-size:12px;color:#9ca3af;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dot-ok{background:#22c55e;box-shadow:0 0 6px #22c55e;}
+.dot-err{background:#ef4444;}
+.dot-ing{background:#f59e0b;animation:pulse .8s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* SUMMARY CARDS */
+.summary{padding:14px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;border-bottom:1px solid #374151;}
+.s-card{background:#374151;border-radius:8px;padding:10px 12px;}
+.s-val{font-size:22px;font-weight:900;color:#fff;line-height:1;}
+.s-lbl{font-size:10px;color:#9ca3af;margin-top:3px;}
+.s-card.green .s-val{color:#4ade80;}
+.s-card.amber .s-val{color:#fbbf24;}
+.s-card.red .s-val{color:#f87171;}
+.s-card.blue .s-val{color:#60a5fa;}
+
+/* NAV */
+.sb-nav{padding:12px 8px;flex:1;overflow-y:auto;}
+.nav-label{font-size:10px;font-weight:700;color:#6b7280;letter-spacing:1px;text-transform:uppercase;padding:6px 8px;margin-bottom:4px;}
+.nav-btn{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;color:#d1d5db;font-size:13px;font-weight:500;transition:all .12s;margin-bottom:2px;border:none;background:none;width:100%;font-family:'Noto Sans KR',sans-serif;}
+.nav-btn:hover{background:#374151;color:#fff;}
+.nav-btn.active{background:var(--g1);color:#fff;}
+.nav-btn .ni{font-size:16px;width:20px;text-align:center;}
+
+/* LOGOUT */
+.sb-foot{padding:12px 8px;border-top:1px solid #374151;}
+.logout-btn{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;cursor:pointer;color:#9ca3af;font-size:13px;transition:all .12s;border:none;background:none;width:100%;font-family:'Noto Sans KR',sans-serif;}
+.logout-btn:hover{background:#374151;color:#ef4444;}
+
+/* MAIN */
+.main{background:#f3f4f6;overflow-y:auto;}
+.main-hdr{background:#fff;padding:16px 24px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.main-title{font-size:18px;font-weight:700;color:var(--txt);}
+.main-body{padding:20px 24px;}
+
+/* SECTION */
+.sec-card{background:#fff;border-radius:var(--r);padding:18px;margin-bottom:16px;box-shadow:var(--sh);}
+.sec-title{font-size:13px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--bd);}
+
+/* PC GRID */
+.pc-admin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.pc-card{border-radius:10px;padding:14px 12px;border:2px solid transparent;transition:all .15s;}
+.pc-card.free{background:#dcfce7;border-color:#86efac;}
+.pc-card.busy{background:#fee2e2;border-color:#fca5a5;}
+.pc-num{font-size:28px;font-weight:900;line-height:1;}
+.pc-card.free .pc-num{color:#15803d;}
+.pc-card.busy .pc-num{color:var(--red);}
+.pc-status{font-size:11px;font-weight:600;margin-top:4px;}
+.pc-card.free .pc-status{color:#15803d;}
+.pc-card.busy .pc-status{color:var(--red);}
+.pc-user{font-size:12px;color:var(--txt2);margin-top:2px;font-weight:500;}
+.pc-end-t{font-size:11px;color:#b45309;margin-top:2px;}
+.pc-progress{width:100%;height:4px;background:#e5e7eb;border-radius:2px;margin-top:8px;overflow:hidden;}
+.pc-prog-bar{height:100%;background:var(--red);border-radius:2px;transition:width 1s;}
+.pc-btns{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap;}
+
+/* BUTTONS */
+.btn-sm{padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:'Noto Sans KR',sans-serif;transition:all .12s;white-space:nowrap;}
+.bs-green{background:var(--g1);color:white;}.bs-green:hover{background:#145a30;}
+.bs-red{background:var(--red);color:white;}.bs-red:hover{background:#b91c1c;}
+.bs-amber{background:var(--acc);color:white;}.bs-amber:hover{background:#d97706;}
+.bs-blue{background:var(--blue);color:white;}.bs-blue:hover{background:#155e9e;}
+.btn{width:100%;padding:11px;border:none;border-radius:var(--rs);font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s;margin-top:6px;}
+.btn-g{background:var(--g1);color:white;}.btn-g:hover{background:#145a30;}
+.btn-gray{background:var(--bg2);color:var(--txt);border:1.5px solid var(--bd);}.btn-gray:hover{background:#e5e7eb;}
+.btn-r{background:var(--red);color:white;}.btn-r:hover{background:#b91c1c;}
+
+/* QUEUE */
+.qi{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--acc2);border:1.5px solid #fcd34d;border-radius:10px;margin-bottom:6px;}
+.qr{font-size:20px;font-weight:900;color:#b45309;min-width:28px;}
+.qn{font-size:14px;font-weight:700;}
+.qm{font-size:11px;color:var(--txt2);margin-top:1px;}
+
+/* NOTIFICATION LOG */
+.notif-log{max-height:280px;overflow-y:auto;}
+.notif-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:6px;border:1px solid var(--bd);background:var(--bg2);}
+.notif-item.new{background:#fffbeb;border-color:#fcd34d;animation:notifIn .3s ease;}
+@keyframes notifIn{from{transform:translateX(-10px);opacity:0}to{transform:translateX(0);opacity:1}}
+.notif-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.notif-msg{font-size:13px;font-weight:500;color:var(--txt);}
+.notif-time{font-size:10px;color:var(--txt2);margin-top:3px;}
+
+/* FACILITY STATUS */
+.fac-rows .fr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;flex-wrap:wrap;}
+.fac-rows .fr:last-child{border-bottom:none;}
+.fr-label{font-size:13px;font-weight:600;min-width:80px;}
+.fr-info{flex:1;font-size:12px;color:var(--txt2);}
+.fr-status{font-size:12px;font-weight:700;}
+.fr-status.ok{color:#15803d;}.fr-status.busy{color:var(--red);}
+
+/* TABLE */
+.twrap{overflow-x:auto;}
+.rtbl{width:100%;border-collapse:collapse;font-size:12px;min-width:560px;}
+.rtbl th{background:var(--g3);color:var(--g1);padding:8px 10px;text-align:left;font-weight:700;font-size:11px;border-bottom:2px solid #86efac;white-space:nowrap;}
+.rtbl td{padding:8px 10px;border-bottom:1px solid var(--bd);vertical-align:middle;}
+.rtbl tr:last-child td{border-bottom:none;}
+.rtbl tr:hover td{background:var(--g4);}
+.chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+.cg{background:#dcfce7;color:#15803d;}.cb{background:#dbeafe;color:var(--blue);}
+.ca{background:#fef9c3;color:#a16207;}.cr{background:#fee2e2;color:var(--red);}
+.cp{background:#f5f3ff;color:#7c3aed;}
+.tab-row{display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--bd);}
+.tab-i{padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--txt2);font-family:'Noto Sans KR',sans-serif;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .12s;}
+.tab-i.active{color:var(--g1);border-bottom-color:var(--g1);}
+.fchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.fchip{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid var(--bd);background:var(--bg);cursor:pointer;color:var(--txt2);transition:all .12s;font-family:'Noto Sans KR',sans-serif;}
+.fchip.active{background:var(--g1);color:white;border-color:var(--g1);}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center;padding:16px;}
+.ov.open{display:flex;}
+.mbox{background:var(--bg);border-radius:16px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3);animation:mIn .2s ease;}
+@keyframes mIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+.mhd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;color:#fff;}
+.mhd.dark{background:#1f2937;}
+.mhd h3{font-size:16px;font-weight:700;}
+.mcl{background:rgba(255,255,255,.2);border:none;color:white;width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.mbdy{padding:20px;}
+.fg{margin-bottom:14px;}
+.fl{font-size:13px;font-weight:600;color:var(--txt2);display:block;margin-bottom:6px;}
+.fi{width:100%;padding:11px 14px;border:1.5px solid var(--bd);border-radius:var(--rs);font-size:15px;background:var(--bg);color:var(--txt);font-family:'Noto Sans KR',sans-serif;transition:border .14s;}
+.fi:focus{outline:none;border-color:var(--g1);}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:white;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;z-index:999;opacity:0;transition:all .25s;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.3);max-width:320px;}
+.toast.show{opacity:1;}
+
+/* PRINT BUTTON ROW */
+.print-row{display:flex;gap:8px;margin-bottom:14px;}
+.print-row .btn{width:auto;padding:9px 16px;font-size:13px;margin-top:0;}
+
+/* HIDDEN PAGE SECTIONS */
+.page{display:none;}
+.page.active{display:block;}
+
+/* PASSWORD OVERLAY */
+.pw-overlay{position:fixed;inset:0;background:#111827;z-index:1000;display:flex;align-items:center;justify-content:center;}
+.pw-box{background:#1f2937;border-radius:18px;padding:40px;width:320px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.pw-icon{font-size:48px;margin-bottom:16px;}
+.pw-title{font-size:22px;font-weight:900;color:#fff;margin-bottom:6px;}
+.pw-sub{font-size:13px;color:#9ca3af;margin-bottom:24px;}
+.pw-input{width:100%;padding:14px;background:#374151;border:2px solid #4b5563;border-radius:10px;font-size:20px;color:#fff;text-align:center;letter-spacing:8px;font-family:'Noto Sans KR',sans-serif;transition:border .14s;}
+.pw-input:focus{outline:none;border-color:var(--g2);}
+.pw-err{color:#f87171;font-size:13px;margin-top:8px;height:20px;}
+.pw-btn{width:100%;margin-top:16px;padding:14px;background:var(--g1);color:white;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:background .12s;}
+.pw-btn:hover{background:#145a30;}
+</style>
+</head>
+<body>
+
+<!-- 비밀번호 화면 -->
+<div class="pw-overlay" id="pw-overlay">
+  <div class="pw-box">
+    <div class="pw-icon">🔒</div>
+    <div class="pw-title">관리자 인증</div>
+    <div class="pw-sub">들락날락 관리자 패널</div>
+    <input class="pw-input" type="password" id="pw-in" placeholder="••••" maxlength="10"
+      onkeydown="if(event.key==='Enter')checkPw()">
+    <div class="pw-err" id="pw-err"></div>
+    <button class="pw-btn" onclick="checkPw()">확인</button>
+  </div>
+</div>
+
+<div class="layout" id="main-layout" style="display:none;">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-hdr">
+      <div class="sb-brand">🎮 들락날락</div>
+      <div class="sb-sub">광양시청소년수련관</div>
+      <div class="sb-admin">👤 관리자 모드</div>
+    </div>
+    <div class="clk-box">
+      <div class="clk-t" id="clk-t">--:--:--</div>
+      <div class="clk-d" id="clk-d"></div>
+    </div>
+    <div class="conn-row">
+      <div class="dot dot-ing" id="conn-dot"></div>
+      <span id="conn-txt">연결 중...</span>
+    </div>
+    <div class="summary" id="summary-cards"></div>
+    <nav class="sb-nav">
+      <div class="nav-label">메뉴</div>
+      <button class="nav-btn active" onclick="goPage('pc',this)"><span class="ni">💻</span> PC 관리</button>
+      <button class="nav-btn" onclick="goPage('facility',this)"><span class="ni">🎮</span> 시설 현황</button>
+      <button class="nav-btn" onclick="goPage('records',this)"><span class="ni">📋</span> 이용기록부</button>
+      <button class="nav-btn" onclick="goPage('notif',this)"><span class="ni">🔔</span> 알림 로그 <span id="notif-badge" style="margin-left:auto;background:#ef4444;color:white;font-size:10px;padding:1px 7px;border-radius:10px;display:none;"></span></button>
+    </nav>
+    <div class="sb-foot">
+      <button class="logout-btn" onclick="logout()">🚪 로그아웃</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="main-hdr">
+      <div class="main-title" id="main-title">💻 PC 관리</div>
+      <div style="font-size:12px;color:var(--txt2);">실시간 동기화 중</div>
+    </div>
+    <div class="main-body">
+
+      <!-- PC 관리 PAGE -->
+      <div class="page active" id="page-pc">
+        <div class="sec-card">
+          <div class="sec-title">PC 상태 (1시간 자동 종료)</div>
+          <div class="pc-admin-grid" id="pc-admin-grid"></div>
+        </div>
+        <div class="sec-card">
+          <div class="sec-title">⏳ PC 대기 현황</div>
+          <div id="admin-queue"></div>
+        </div>
+        <div class="sec-card">
+          <div class="sec-title">PC 직접 등록</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="fg"><label class="fl">이름</label><input class="fi" id="adm-pc-name" placeholder="이름" autocomplete="off"></div>
+            <div class="fg"><label class="fl">연락처</label><input class="fi" id="adm-pc-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
+          </div>
+          <div class="fg">
+            <label class="fl">PC 선택</label>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;" id="adm-pc-chips"></div>
+          </div>
+          <button class="btn btn-g" onclick="adminStartPC()">💻 PC 이용 시작</button>
+        </div>
+      </div>
+
+      <!-- 시설 현황 PAGE -->
+      <div class="page" id="page-facility">
+        <div class="sec-card">
+          <div class="sec-title">🎵 코인노래방</div>
+          <div class="fac-rows" id="adm-karaoke"></div>
+        </div>
+        <div class="sec-card">
+          <div class="sec-title">🕹️ 닌텐도</div>
+          <div class="fac-rows" id="adm-nintendo"></div>
+        </div>
+        <div class="sec-card">
+          <div class="sec-title">👾 오락기</div>
+          <div class="fac-rows" id="adm-arcade"></div>
+        </div>
+        <div class="sec-card">
+          <div class="sec-title">🎱 포켓볼 · 🎲 보드게임</div>
+          <div class="fac-rows" id="adm-others"></div>
+        </div>
+      </div>
+
+      <!-- 이용기록부 PAGE -->
+      <div class="page" id="page-records">
+        <div class="sec-card">
+          <div class="print-row">
+            <button class="btn btn-amber" style="background:#b45309;color:white;" onclick="printRecords()">🖨️ 인쇄/PDF</button>
+            <button class="btn" style="background:var(--blue);color:white;" onclick="downloadCSV()">⬇️ CSV</button>
+          </div>
+          <div class="tab-row">
+            <button class="tab-i active" onclick="setTab('all',this)">전체</button>
+            <button class="tab-i" onclick="setTab('today',this)">오늘</button>
+            <button class="tab-i" onclick="setTab('active',this)">이용중</button>
+            <button class="tab-i" onclick="setTab('ended',this)">종료</button>
+          </div>
+          <div class="fchips">
+            <button class="fchip active" onclick="setFilter('전체',this)">전체</button>
+            <button class="fchip" onclick="setFilter('코인노래방',this)">코인노래방</button>
+            <button class="fchip" onclick="setFilter('닌텐도',this)">닌텐도</button>
+            <button class="fchip" onclick="setFilter('오락기',this)">오락기</button>
+            <button class="fchip" onclick="setFilter('포켓볼',this)">포켓볼</button>
+            <button class="fchip" onclick="setFilter('PC',this)">PC</button>
+            <button class="fchip" onclick="setFilter('보드게임',this)">보드게임</button>
+          </div>
+          <div class="twrap">
+            <table class="rtbl">
+              <thead><tr><th>#</th><th>날짜</th><th>시간</th><th>이름</th><th>연락처</th><th>시설</th><th>부스</th><th>게임명</th><th>상태</th></tr></thead>
+              <tbody id="rec-tbody"></tbody>
+            </table>
+          </div>
+          <div id="rec-empty" style="text-align:center;padding:28px;font-size:13px;color:var(--txt2);display:none;">📭 기록 없음</div>
+          <div id="rec-count" style="font-size:12px;color:var(--txt2);margin-top:10px;text-align:right;"></div>
+        </div>
+      </div>
+
+      <!-- 알림 로그 PAGE -->
+      <div class="page" id="page-notif">
+        <div class="sec-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <div class="sec-title" style="margin-bottom:0;border:none;padding:0;">실시간 알림 로그</div>
+            <button class="btn-sm bs-red" onclick="clearNotifs()">전체 삭제</button>
+          </div>
+          <div class="notif-log" id="notif-log">
+            <div style="text-align:center;padding:20px;font-size:13px;color:var(--txt2);">알림 없음</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- 인쇄 미리보기 모달 -->
+<div class="ov" id="ov-print">
+  <div class="mbox" style="max-width:700px;border-radius:16px;">
+    <div class="mhd dark">
+      <h3>🖨️ 인쇄 미리보기</h3>
+      <button class="mcl" onclick="closeOv('ov-print')">✕</button>
+    </div>
+    <div class="mbdy">
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button class="btn-sm bs-amber" onclick="doPrint()" style="padding:9px 16px;font-size:13px;">🖨️ 인쇄 실행</button>
+        <button class="btn-sm" style="background:var(--bg2);color:var(--txt);padding:9px 16px;font-size:13px;" onclick="closeOv('ov-print')">닫기</button>
+      </div>
+      <div id="print-preview" style="max-height:60vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const ADMIN_PW='2230';
+const SERVER=`${location.protocol}//${location.hostname}:3000`;
+
+let state={records:[],pcStatus:{},pcQueue:[]};
+let recTab='all',recFilter='전체';
+let notifLog=[],newNotifCount=0;
+let adminSelPC=null;
+let pcTimers={}; // 남은 시간 표시용
+let sse=null;
+
+// ===================== PASSWORD =====================
+window.onload=()=>{
+  setTimeout(()=>document.getElementById('pw-in').focus(),100);
+  document.querySelectorAll('.ov').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');}));
+};
+function checkPw(){
+  const v=document.getElementById('pw-in').value;
+  if(v===ADMIN_PW){
+    document.getElementById('pw-overlay').style.display='none';
+    document.getElementById('main-layout').style.display='grid';
+    initAdmin();
+  }else{
+    document.getElementById('pw-err').textContent='비밀번호가 틀렸습니다';
+    document.getElementById('pw-in').value='';
+    document.getElementById('pw-in').focus();
+    setTimeout(()=>document.getElementById('pw-err').textContent='',2000);
+  }
+}
+function logout(){
+  document.getElementById('pw-overlay').style.display='flex';
+  document.getElementById('main-layout').style.display='none';
+  document.getElementById('pw-in').value='';
+  setTimeout(()=>document.getElementById('pw-in').focus(),100);
+  if(sse){sse.close();sse=null;}
+}
+
+// ===================== INIT =====================
+function initAdmin(){
+  tickClock(); setInterval(tickClock,1000);
+  phoneMask('adm-pc-phone');
+  connectSSE();
+  setInterval(updateTimers,1000);
+}
+
+function connectSSE(){
+  setConn('ing','연결 중...');
+  sse=new EventSource(`${SERVER}/events`);
+  sse.addEventListener('init',e=>{
+    state=JSON.parse(e.data);
+    renderAll();
+    setConn('ok','실시간 연결됨 ✓');
+  });
+  sse.addEventListener('update',e=>{
+    state=JSON.parse(e.data);
+    renderAll();
+  });
+  sse.addEventListener('notify',e=>{
+    const d=JSON.parse(e.data);
+    addNotif(d);
+  });
+  sse.onerror=()=>{
+    setConn('err','연결 끊김 — 재연결 중...');
+    setTimeout(connectSSE,3000);
+  };
+}
+function setConn(type,msg){
+  const d=document.getElementById('conn-dot');
+  d.className='dot dot-'+type;
+  document.getElementById('conn-txt').textContent=msg;
+}
+
+// ===================== CLOCK =====================
+function tickClock(){
+  const n=new Date();
+  document.getElementById('clk-t').textContent=n.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const days=['일','월','화','수','목','금','토'];
+  document.getElementById('clk-d').textContent=`${n.getMonth()+1}월 ${n.getDate()}일 (${days[n.getDay()]})`;
+}
+function nowStr(){return new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+function todayStr(){return new Date().toLocaleDateString('ko-KR');}
+
+// ===================== RENDER ALL =====================
+function renderAll(){
+  renderSummary();
+  renderPCAdmin();
+  renderAdminQueue();
+  renderAdmPCChips();
+  renderFacility();
+  renderRecTable();
+}
+
+// ===================== SUMMARY =====================
+function renderSummary(){
+  const pcBusy=Object.values(state.pcStatus).filter(s=>!s.free).length;
+  const pcFree=6-pcBusy;
+  const active=state.records.filter(r=>r.active).length;
+  const today=state.records.filter(r=>r.date===todayStr()).length;
+  document.getElementById('summary-cards').innerHTML=`
+    <div class="s-card green"><div class="s-val">${pcFree}</div><div class="s-lbl">PC 빈자리</div></div>
+    <div class="s-card red"><div class="s-val">${pcBusy}</div><div class="s-lbl">PC 이용중</div></div>
+    <div class="s-card amber"><div class="s-val">${active}</div><div class="s-lbl">전체 이용중</div></div>
+    <div class="s-card blue"><div class="s-val">${today}</div><div class="s-lbl">오늘 이용</div></div>`;
+}
+
+// ===================== PC ADMIN =====================
+function renderPCAdmin(){
+  const g=document.getElementById('pc-admin-grid'); g.innerHTML='';
+  for(let i=1;i<=6;i++){
+    const k='PC'+i; const s=state.pcStatus[k]||{free:true};
+    const d=document.createElement('div');
+    d.className='pc-card '+(s.free?'free':'busy');
+    let btns='';
+    if(s.free){
+      btns=`<button class="btn-sm bs-green" onclick="quickStartPC('${k}')">이용시작</button>`;
+    }else{
+      btns=`<button class="btn-sm bs-red" onclick="quickEndPC('${k}')">종료</button>`;
+      if(state.pcQueue&&state.pcQueue.length>0)
+        btns+=` <button class="btn-sm bs-amber" onclick="assignQueue('${k}')">대기배정</button>`;
+    }
+    // 진행바: endTime 기준으로 계산
+    let progressBar='';
+    if(!s.free&&s.endTime){
+      progressBar=`<div class="pc-progress"><div class="pc-prog-bar" id="bar-${k}" style="width:100%"></div></div>`;
+    }
+    d.innerHTML=`
+      <div class="pc-num">${i}</div>
+      <div class="pc-status">${s.free?'✓ 이용가능':'● 이용중'}</div>
+      <div class="pc-user">${s.user||''}</div>
+      ${!s.free&&s.endTime?`<div class="pc-end-t" id="remain-${k}">종료: ~${s.endTime}</div>`:''}
+      ${progressBar}
+      <div class="pc-btns">${btns}</div>`;
+    g.appendChild(d);
+  }
+}
+
+// 남은 시간 진행바 업데이트 (endMs 기준 - NaN 없음)
+function updateTimers(){
+  for(let i=1;i<=6;i++){
+    const k='PC'+i; const s=state.pcStatus[k];
+    if(!s||s.free||!s.endMs) continue;
+    const bar=document.getElementById('bar-'+k);
+    const rem=document.getElementById('remain-'+k);
+    if(!bar||!rem) continue;
+    const now=Date.now();
+    const diffMs=s.endMs-now;
+    if(diffMs<=0){
+      rem.textContent='⚠️ 시간 초과';
+      bar.style.width='0%';
+      bar.style.background='#ef4444';
+      continue;
+    }
+    const totalMs=60*60*1000;
+    const pct=Math.max(0,Math.min(100,(diffMs/totalMs)*100));
+    bar.style.width=pct+'%';
+    bar.style.background=pct<20?'#ef4444':pct<40?'#f59e0b':'#22c55e';
+    const mins=Math.floor(diffMs/60000);
+    const secs=Math.floor((diffMs%60000)/1000);
+    rem.textContent=`남은 시간: ${mins}분 ${secs}초`;
+  }
+}
+
+async function quickStartPC(k){
+  const name=prompt(`${k} 이용자 이름:`); if(!name)return;
+  const phone=prompt('연락처:')||'-';
+  await api('/api/pc/start',{name,phone,pcKey:k});
+  toast(`✅ ${k} 이용 시작: ${name}`);
+}
+async function quickEndPC(k){
+  if(!confirm(`${k} 이용을 종료하시겠습니까?`))return;
+  await api('/api/pc/end',{pcKey:k});
+  toast(`${k} 이용 종료 처리`);
+}
+async function assignQueue(k){
+  if(!confirm(`대기자 1순위를 ${k}에 배정하시겠습니까?`))return;
+  await api('/api/pc/queue-assign',{pcKey:k});
+  toast(`대기자 배정 완료`);
+}
+async function adminStartPC(){
+  const name=document.getElementById('adm-pc-name').value.trim();
+  const phone=document.getElementById('adm-pc-phone').value.trim();
+  if(!name){toast('이름을 입력해 주세요');return;}
+  if(!phone){toast('연락처를 입력해 주세요');return;}
+  if(!adminSelPC){toast('PC를 선택해 주세요');return;}
+  const r=await api('/api/pc/start',{name,phone,pcKey:adminSelPC});
+  if(r.ok){
+    document.getElementById('adm-pc-name').value='';
+    document.getElementById('adm-pc-phone').value='';
+    adminSelPC=null;
+    toast(`✅ ${adminSelPC||'PC'} 이용 등록 완료`);
+  }else toast(r.error||'오류');
+}
+function renderAdmPCChips(){
+  const g=document.getElementById('adm-pc-chips'); g.innerHTML='';
+  for(let i=1;i<=6;i++){
+    const k='PC'+i;
+    const s=state.pcStatus[k]||{free:true};
+    const c=document.createElement('div');
+    c.style.cssText=`padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:${s.free?'pointer':'not-allowed'};border:1.5px solid ${s.free?'var(--bd)':'#fca5a5'};background:${s.free?'var(--bg)':'var(--red2)'};color:${s.free?'var(--txt)':'#b91c1c'};transition:all .14s;user-select:none;`;
+    c.textContent=k+(s.free?'':' (이용중)');
+    if(s.free){
+      c.onclick=()=>{
+        document.getElementById('adm-pc-chips').querySelectorAll('div').forEach(x=>{x.style.background='var(--bg)';x.style.color='var(--txt)';x.style.borderColor='var(--bd)';});
+        c.style.background='var(--g1)';c.style.color='white';c.style.borderColor='var(--g1)';
+        adminSelPC=k;
+      };
+    }
+    g.appendChild(c);
+  }
+}
+function renderAdminQueue(){
+  const d=document.getElementById('admin-queue');
+  const q=state.pcQueue||[];
+  if(!q.length){d.innerHTML='<div style="font-size:13px;color:var(--txt2);padding:6px 0;">대기 없음</div>';return;}
+  d.innerHTML='';
+  q.forEach((x,i)=>{
+    const el=document.createElement('div');el.className='qi';
+    el.innerHTML=`<div class="qr">${i+1}</div><div style="flex:1"><div class="qn">${x.name}</div><div class="qm">${x.phone} · ${x.time}</div></div>`;
+    d.appendChild(el);
+  });
+}
+
+// ===================== FACILITY =====================
+function renderFacility(){
+  renderFacSection('adm-karaoke','코인노래방',['1번 부스','2번 부스']);
+  renderFacSection('adm-nintendo','닌텐도',['1번','2번','3번','4번','5번']);
+  renderFacSection('adm-arcade','오락기',['1번','2번','3번','4번']);
+  renderOthers();
+}
+function renderFacSection(elId,facName,booths){
+  const el=document.getElementById(elId); el.innerHTML='';
+  booths.forEach(b=>{
+    const used=state.records.find(r=>r.facility===facName&&r.booth===b&&r.active);
+    const row=document.createElement('div'); row.className='fr';
+    row.innerHTML=`<span class="fr-label">${b}</span>
+      <span class="fr-status ${used?'busy':'ok'}">${used?'● 이용중 ('+used.name+')':'✓ 비어있음'}</span>
+      <span class="fr-info" style="flex:1"></span>`;
+    if(used){
+      const btn=document.createElement('button');
+      btn.className='btn-sm bs-red';btn.textContent='이용종료';
+      btn.onclick=async()=>{await api('/api/end',{facility:facName,booth:b});toast(b+' 종료');};
+      row.appendChild(btn);
+    }
+    el.appendChild(row);
+  });
+}
+function renderOthers(){
+  const el=document.getElementById('adm-others'); el.innerHTML='';
+  ['포켓볼','보드게임'].forEach(fac=>{
+    const active=state.records.filter(r=>r.facility===fac&&r.active);
+    const row=document.createElement('div'); row.className='fr';
+    row.innerHTML=`<span class="fr-label">${fac}</span>
+      <span class="fr-status ${active.length?'busy':'ok'}">${active.length?'이용중 '+active.length+'명':'✓ 여유'}</span>
+      <span class="fr-info" style="flex:1"></span>`;
+    if(active.length){
+      const btn=document.createElement('button');
+      btn.className='btn-sm bs-red';btn.textContent='전체종료';
+      btn.onclick=async()=>{
+        for(const r of active) await api('/api/end',{facility:fac,booth:r.booth});
+        toast(fac+' 전체 종료');
+      };
+      row.appendChild(btn);
+    }
+    el.appendChild(row);
+  });
+}
+
+// ===================== RECORDS =====================
+function setTab(tab,btn){recTab=tab;document.querySelectorAll('.tab-i').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderRecTable();}
+function setFilter(f,btn){recFilter=f;document.querySelectorAll('.fchip').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderRecTable();}
+function getFiltered(){
+  let d=[...state.records];
+  if(recTab==='today')d=d.filter(r=>r.date===todayStr());
+  if(recTab==='active')d=d.filter(r=>r.active);
+  if(recTab==='ended')d=d.filter(r=>!r.active);
+  if(recFilter!=='전체')d=d.filter(r=>r.facility===recFilter);
+  return d.reverse();
+}
+function renderRecTable(){
+  const data=getFiltered();
+  const tb=document.getElementById('rec-tbody'); if(!tb)return; tb.innerHTML='';
+  const ec=document.getElementById('rec-empty'); if(ec)ec.style.display=data.length?'none':'block';
+  const rc=document.getElementById('rec-count'); if(rc)rc.textContent=`총 ${data.length}건`;
+  const fc={'코인노래방':'ca','닌텐도':'cp','오락기':'cb','포켓볼':'cb','PC':'cb','보드게임':'cg'};
+  data.forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="color:var(--txt2);font-size:11px">${r.id}</td><td style="font-size:11px;white-space:nowrap">${r.date}</td><td style="font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums">${r.time}</td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;color:var(--txt2)">${r.phone}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:12px">${r.booth}</td><td style="font-size:11px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><span class="chip ${r.active?'cg':'cr'}">${r.active?'이용중':'종료'}</span></td>`;
+    tb.appendChild(tr);
+  });
+}
+function printRecords(){
+  const data=getFiltered();
+  const rows=data.map(r=>`<tr><td>${r.id}</td><td>${r.date}</td><td>${r.time}</td><td><b>${r.name}</b></td><td>${r.phone}</td><td>${r.facility}</td><td>${r.booth}</td><td>${r.game!=='-'?r.game:''}</td></tr>`).join('');
+  const now=new Date();
+  const html=`<div style="font-family:'Noto Sans KR','Malgun Gothic',sans-serif;padding:20px;">
+    <div style="text-align:center;border-bottom:3px double #1a6b3c;padding-bottom:14px;margin-bottom:16px;">
+      <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">광양시청소년수련관</div>
+      <div style="font-size:24px;font-weight:900;color:#1a6b3c;">들락날락 시설 이용 기록부</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #e5e7eb;">
+      <span>출력일시: ${now.toLocaleString('ko-KR')}</span>
+      <span>총 ${data.length}건</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">#</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">날짜</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">시간</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">이름</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">연락처</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">시설</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">부스/번호</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">게임명</th>
+      </tr></thead>
+      <tbody>${data.length?rows:'<tr><td colspan="8" style="text-align:center;padding:20px;">기록 없음</td></tr>'}</tbody>
+    </table>
+    <div style="margin-top:20px;display:flex;justify-content:flex-end;">
+      <div style="text-align:right;font-size:13px;font-weight:600;color:#1a6b3c;">광양시청소년문화센터</div>
+    </div>
+    <div style="margin-top:12px;text-align:center;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;">
+      광양시청소년수련관 청소년놀이공간 들락날락 · 본 기록은 시설 이용 증빙자료입니다
+    </div>
+  </div>`;
+  document.getElementById('print-preview').innerHTML=html;
+  document.getElementById('ov-print').classList.add('open');
+}
+function doPrint(){
+  const content=document.getElementById('print-preview').innerHTML;
+  const w=window.open('','_blank','width=900,height=700');
+  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>들락날락 이용기록부</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Noto Sans KR','Malgun Gothic',sans-serif;}
+  table{width:100%;border-collapse:collapse;}th,td{border:1px solid #d1d5db;padding:7px 10px;}
+  th{background:#1a6b3c!important;color:white!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  tr:nth-child(even) td{background:#f0faf4;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style>
+  </head><body>${content}</body></html>`);
+  w.document.close();w.focus();setTimeout(()=>w.print(),800);
+}
+function downloadCSV(){
+  const data=getFiltered();
+  const hdr=['#','날짜','시간','이름','연락처','시설','부스/번호','게임명','상태'];
+  const rows=data.map(r=>[r.id,r.date,r.time,r.name,r.phone,r.facility,r.booth,r.game,r.active?'이용중':'종료']);
+  const csv='\uFEFF'+[hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`들락날락_이용기록_${todayStr().replace(/\./g,'')}.csv`;
+  a.click(); toast('⬇️ CSV 다운로드 완료');
+}
+
+// ===================== NOTIFICATION =====================
+function addNotif(d){
+  newNotifCount++;
+  const badge=document.getElementById('notif-badge');
+  badge.style.display='inline';badge.textContent=newNotifCount;
+
+  notifLog.unshift({...d,logTime:nowStr()});
+  const log=document.getElementById('notif-log');
+  const icons={'register':'✅','pc_start':'💻','pc_end':'🔴','queue':'⏳','queue_ready':'🔔','queue_assign':'✅'};
+  const item=document.createElement('div');
+  item.className='notif-item new';
+  item.innerHTML=`<div class="notif-icon">${icons[d.type]||'📢'}</div><div><div class="notif-msg">${d.message}</div><div class="notif-time">${nowStr()}</div></div>`;
+  if(log.children.length===1&&log.children[0].tagName!=='DIV'.toUpperCase())log.innerHTML='';
+  log.insertBefore(item,log.firstChild);
+  setTimeout(()=>item.classList.remove('new'),500);
+  toast('🔔 '+d.message);
+}
+function clearNotifs(){
+  notifLog=[];newNotifCount=0;
+  document.getElementById('notif-badge').style.display='none';
+  document.getElementById('notif-log').innerHTML='<div style="text-align:center;padding:20px;font-size:13px;color:var(--txt2);">알림 없음</div>';
+}
+
+// ===================== NAV =====================
+function goPage(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  const titles={pc:'💻 PC 관리',facility:'🎮 시설 현황',records:'📋 이용기록부',notif:'🔔 알림 로그'};
+  document.getElementById('main-title').textContent=titles[id]||'';
+  if(id==='notif'){newNotifCount=0;document.getElementById('notif-badge').style.display='none';}
+}
+function closeOv(id){document.getElementById(id).classList.remove('open');}
+
+// ===================== HELPERS =====================
+async function api(path,body){
+  const r=await fetch(SERVER+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return r.json();
+}
+function phoneMask(id){
+  const el=document.getElementById(id); if(!el)return;
+  el.addEventListener('input',function(){
+    let v=this.value.replace(/\D/g,'');
+    if(v.length>11)v=v.slice(0,11);
+    if(v.length>7)v=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+    else if(v.length>3)v=v.slice(0,3)+'-'+v.slice(3);
+    this.value=v;
+  });
+}
+let _tt;
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),3000);}
+</script>
+</body>
+</html>

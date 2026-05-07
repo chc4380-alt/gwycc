@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>들락날락 — 시설 이용 키오스크</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --g1:#1a6b3c;--g2:#2d9d5c;--g3:#e8f5ee;--g4:#f0faf4;
+  --acc:#f59e0b;--acc2:#fef3c7;
+  --red:#dc2626;--red2:#fef2f2;
+  --blue:#1d6fb5;--blue2:#eff6ff;
+  --pur:#7c3aed;--pur2:#f5f3ff;
+  --txt:#111827;--txt2:#6b7280;
+  --bg:#ffffff;--bg2:#f9fafb;
+  --bd:#e5e7eb;
+  --r:14px;--rs:8px;
+  --sh:0 2px 12px rgba(0,0,0,.08);
+  --shl:0 8px 32px rgba(0,0,0,.14);
+}
+body{font-family:'Noto Sans KR',sans-serif;background:#f0f4f0;color:var(--txt);min-height:100vh;-webkit-tap-highlight-color:transparent;}
+.wrap{max-width:640px;margin:0 auto;min-height:100vh;background:#f0f4f0;}
+
+/* HEADER */
+.hdr{background:var(--g1);position:sticky;top:0;z-index:50;box-shadow:0 2px 16px rgba(26,107,60,.3);}
+.hdr-in{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;}
+.brand{font-family:'Black Han Sans',sans-serif;font-size:26px;color:#fff;letter-spacing:3px;line-height:1;}
+.brand-sub{font-size:11px;color:rgba(255,255,255,.75);margin-top:3px;}
+.clk{text-align:right;}
+.clk-t{font-size:22px;font-weight:900;color:#fff;letter-spacing:2px;font-variant-numeric:tabular-nums;}
+.clk-d{font-size:11px;color:rgba(255,255,255,.75);margin-top:2px;}
+
+/* BODY */
+.body{padding:18px 16px 40px;}
+.sec-label{font-size:11px;font-weight:700;color:var(--txt2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;padding-left:2px;}
+
+/* FACILITY GRID */
+.fac-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;}
+.fac-card{background:var(--bg);border:1.5px solid var(--bd);border-radius:var(--r);padding:16px 10px 12px;text-align:center;cursor:pointer;transition:all .18s cubic-bezier(.34,1.56,.64,1);position:relative;box-shadow:var(--sh);user-select:none;-webkit-user-select:none;}
+.fac-card:hover,.fac-card:active{border-color:var(--g2);background:var(--g4);transform:translateY(-3px);box-shadow:0 6px 20px rgba(26,107,60,.15);}
+.fac-card.pc{border-color:#93c5fd;background:var(--blue2);}
+.fac-card.pc:hover{border-color:var(--blue);background:#dbeafe;}
+.avail{position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;}
+.av-ok{background:#dcfce7;color:#15803d;}
+.av-warn{background:#fef9c3;color:#a16207;}
+.av-full{background:#fee2e2;color:var(--red);}
+.fac-em{font-size:30px;display:block;margin-bottom:6px;line-height:1;}
+.fac-nm{font-size:13px;font-weight:700;}
+.fac-sb{font-size:11px;color:var(--txt2);margin-top:3px;}
+
+/* BOTTOM BTN */
+.bot-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.act-btn{background:var(--bg);border:1.5px solid var(--bd);border-radius:var(--r);padding:14px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:'Noto Sans KR',sans-serif;transition:all .15s;box-shadow:var(--sh);}
+.act-btn:hover{background:var(--g4);border-color:var(--g2);}
+.act-btn .ai{font-size:22px;}
+.act-btn .at{font-size:13px;font-weight:700;}
+.act-btn .as{font-size:11px;color:var(--txt2);}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;}
+.ov.open{display:flex;}
+.mbox{background:var(--bg);border-radius:18px;width:100%;max-width:460px;margin:auto;overflow:hidden;box-shadow:var(--shl);animation:mIn .22s cubic-bezier(.34,1.56,.64,1);}
+.mbox.wide{max-width:600px;}
+@keyframes mIn{from{transform:translateY(30px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+.mhd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;color:#fff;}
+.mhd.green{background:var(--g1);}
+.mhd.blue{background:var(--blue);}
+.mhd.amber{background:#b45309;}
+.mhd h3{font-size:16px;font-weight:700;}
+.mcl{background:rgba(255,255,255,.2);border:none;color:white;width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s;}
+.mcl:hover{background:rgba(255,255,255,.35);}
+.mbdy{padding:20px;}
+
+/* FORM */
+.fg{margin-bottom:16px;}
+.fl{font-size:13px;font-weight:600;color:var(--txt2);display:block;margin-bottom:6px;}
+.fl .req{color:var(--red);}
+.fi,.fs{width:100%;padding:11px 14px;border:1.5px solid var(--bd);border-radius:var(--rs);font-size:15px;background:var(--bg);color:var(--txt);font-family:'Noto Sans KR',sans-serif;transition:border .14s,box-shadow .14s;appearance:none;}
+.fi:focus,.fs:focus{outline:none;border-color:var(--g1);box-shadow:0 0 0 3px rgba(26,107,60,.12);}
+
+/* BOOTH CHIPS */
+.bchips{display:flex;flex-wrap:wrap;gap:8px;}
+.bchip{padding:8px 16px;border:1.5px solid var(--bd);border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;transition:all .14s;color:var(--txt);background:var(--bg);user-select:none;}
+.bchip:hover{border-color:var(--g1);background:var(--g4);}
+.bchip.sel{border-color:var(--g1);background:var(--g1);color:white;}
+.bchip.occ{border-color:#fca5a5;background:var(--red2);color:#b91c1c;cursor:not-allowed;opacity:.7;}
+
+/* BUTTONS */
+.btn{width:100%;padding:13px;border:none;border-radius:var(--rs);font-size:15px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s;margin-top:6px;display:block;}
+.btn-g{background:var(--g1);color:white;}.btn-g:hover{background:#145a30;}
+.btn-b{background:var(--blue);color:white;}.btn-b:hover{background:#155e9e;}
+.btn-a{background:var(--acc);color:white;}.btn-a:hover{background:#d97706;}
+.btn-gray{background:var(--bg2);color:var(--txt);border:1.5px solid var(--bd);}.btn-gray:hover{background:#e5e7eb;}
+
+/* PC TILES */
+.pc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
+.pc-tile{border-radius:12px;padding:12px 8px;text-align:center;border:2px solid transparent;transition:all .14s;}
+.pc-tile.free{background:#dcfce7;border-color:#86efac;}
+.pc-tile.busy{background:#fee2e2;border-color:#fca5a5;}
+.pc-num{font-size:26px;font-weight:900;line-height:1;}
+.pc-tile.free .pc-num{color:#15803d;}
+.pc-tile.busy .pc-num{color:var(--red);}
+.pc-lbl{font-size:11px;font-weight:600;margin-top:4px;}
+.pc-tile.free .pc-lbl{color:#15803d;}
+.pc-tile.busy .pc-lbl{color:var(--red);}
+.pc-usr{font-size:10px;color:var(--txt2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pc-end{font-size:10px;color:#b45309;margin-top:1px;}
+
+/* QUEUE */
+.qi{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--acc2);border:1.5px solid #fcd34d;border-radius:10px;margin-bottom:6px;}
+.qr{font-size:22px;font-weight:900;color:#b45309;min-width:28px;}
+.qn{font-size:14px;font-weight:700;}
+.qm{font-size:11px;color:var(--txt2);margin-top:2px;}
+
+/* RECORDS */
+.tab-row{display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--bd);}
+.tab-i{padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--txt2);font-family:'Noto Sans KR',sans-serif;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .12s;}
+.tab-i.active{color:var(--g1);border-bottom-color:var(--g1);}
+.fchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.fchip{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid var(--bd);background:var(--bg);cursor:pointer;color:var(--txt2);transition:all .12s;font-family:'Noto Sans KR',sans-serif;}
+.fchip.active{background:var(--g1);color:white;border-color:var(--g1);}
+.twrap{overflow-x:auto;}
+.rtbl{width:100%;border-collapse:collapse;font-size:12px;min-width:520px;}
+.rtbl th{background:var(--g3);color:var(--g1);padding:9px 10px;text-align:left;font-weight:700;font-size:11px;border-bottom:2px solid #86efac;white-space:nowrap;}
+.rtbl td{padding:9px 10px;border-bottom:1px solid var(--bd);color:var(--txt);vertical-align:middle;}
+.rtbl tr:last-child td{border-bottom:none;}
+.rtbl tr:hover td{background:var(--g4);}
+.chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+.cg{background:#dcfce7;color:#15803d;}.cb{background:#dbeafe;color:var(--blue);}
+.ca{background:#fef9c3;color:#a16207;}.cr{background:#fee2e2;color:var(--red);}
+.cp{background:#f5f3ff;color:var(--pur);}
+
+/* DIVIDER */
+hr.dv{border:none;border-top:1px solid var(--bd);margin:16px 0;}
+
+/* INFO BOX */
+.ibox{background:var(--blue2);border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;font-size:12px;color:#1e40af;margin-bottom:14px;line-height:1.5;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1f2937;color:white;padding:12px 22px;border-radius:30px;font-size:14px;font-weight:500;z-index:999;opacity:0;transition:all .25s cubic-bezier(.34,1.56,.64,1);pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* CONNECTION STATUS */
+.conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;}
+.conn-ok{background:#22c55e;}.conn-err{background:#ef4444;}.conn-ing{background:#f59e0b;}
+
+/* PRINT */
+@media print{body,*{display:none!important;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hdr">
+    <div class="hdr-in">
+      <div>
+        <div class="brand">🎮 들락날락</div>
+        <div class="brand-sub">광양시청소년수련관 청소년놀이공간</div>
+      </div>
+      <div class="clk">
+        <div class="clk-t" id="clk-t">--:--:--</div>
+        <div class="clk-d" id="clk-d"></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="body">
+    <!-- 연결 상태 -->
+    <div style="display:flex;align-items:center;margin-bottom:14px;font-size:12px;color:var(--txt2);">
+      <span class="conn-dot conn-ing" id="conn-dot"></span>
+      <span id="conn-txt">서버 연결 중...</span>
+    </div>
+
+    <div class="sec-label">시설 선택하기</div>
+    <div class="fac-grid" id="fac-grid"></div>
+
+    <div class="bot-row">
+      <button class="act-btn" onclick="openRecords()">
+        <span class="ai">📋</span>
+        <div><div class="at">이용기록부</div><div class="as">전체 기록 조회·인쇄</div></div>
+      </button>
+      <button class="act-btn" onclick="openAdmin()">
+        <span class="ai">⚙️</span>
+        <div><div class="at">관리자 패널</div><div class="as">시설 상태 관리</div></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 일반 시설 등록 -->
+<div class="ov" id="ov-reg">
+  <div class="mbox">
+    <div class="mhd green">
+      <h3 id="reg-title">시설 이용 등록</h3>
+      <button class="mcl" onclick="closeModal('ov-reg')">✕</button>
+    </div>
+    <div class="mbdy">
+      <div class="ibox" id="reg-info"></div>
+      <div class="fg"><label class="fl">이용 시작 시간</label><input class="fi" id="reg-time" readonly style="background:var(--bg2);cursor:default;"></div>
+      <div class="fg"><label class="fl">이름 <span class="req">*</span></label><input class="fi" id="reg-name" placeholder="이름을 입력해 주세요" maxlength="20" autocomplete="off"></div>
+      <div class="fg"><label class="fl">연락처 <span class="req">*</span></label><input class="fi" id="reg-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
+      <div class="fg" id="grp-game" style="display:none">
+        <label class="fl">게임 이름 <span class="req">*</span></label>
+        <input class="fi" id="reg-game" placeholder="예: 마리오카트, 스플래툰…" maxlength="30" autocomplete="off">
+      </div>
+      <div class="fg" id="grp-booth">
+        <label class="fl">부스 / 번호 선택 <span class="req">*</span></label>
+        <div class="bchips" id="reg-booths"></div>
+      </div>
+      <button class="btn btn-g" onclick="submitReg()">✅ 이용 등록하기</button>
+      <button class="btn btn-gray" onclick="closeModal('ov-reg')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- PC 이용/대기 -->
+<div class="ov" id="ov-pc">
+  <div class="mbox">
+    <div class="mhd blue">
+      <h3>💻 PC 이용 · 대기 등록</h3>
+      <button class="mcl" onclick="closeModal('ov-pc')">✕</button>
+    </div>
+    <div class="mbdy">
+      <div class="pc-grid" id="pc-tiles"></div>
+      <div style="font-size:12px;font-weight:700;color:var(--txt2);margin-bottom:8px;">⏳ 대기 현황</div>
+      <div id="pc-queue-disp"></div>
+      <hr class="dv">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">이용 등록 / 대기 신청</div>
+      <div class="fg"><label class="fl">이름 <span class="req">*</span></label><input class="fi" id="pc-name" placeholder="이름을 입력해 주세요" maxlength="20" autocomplete="off"></div>
+      <div class="fg"><label class="fl">연락처 <span class="req">*</span></label><input class="fi" id="pc-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
+      <div class="fg">
+        <label class="fl">PC 번호 선택 <span style="font-size:11px;color:var(--txt2)">(빈 자리만)</span></label>
+        <div class="bchips" id="pc-booth-chips"></div>
+      </div>
+      <button class="btn btn-b" onclick="submitPCUse()">💻 PC 이용 등록</button>
+      <button class="btn btn-a" onclick="submitPCQueue()">⏳ 대기 등록하기</button>
+      <button class="btn btn-gray" onclick="closeModal('ov-pc')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 이용기록부 -->
+<div class="ov" id="ov-rec">
+  <div class="mbox wide">
+    <div class="mhd green">
+      <h3>📋 시설 이용 기록부</h3>
+      <button class="mcl" onclick="closeModal('ov-rec')">✕</button>
+    </div>
+    <div class="mbdy">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <button class="btn btn-a" style="width:auto;padding:9px 16px;font-size:13px;margin-top:0;" onclick="printRecords()">🖨️ 인쇄/PDF</button>
+        <button class="btn btn-b" style="width:auto;padding:9px 16px;font-size:13px;margin-top:0;" onclick="downloadCSV()">⬇️ CSV</button>
+      </div>
+      <div class="tab-row">
+        <button class="tab-i active" onclick="setTab('all',this)">전체</button>
+        <button class="tab-i" onclick="setTab('today',this)">오늘</button>
+        <button class="tab-i" onclick="setTab('active',this)">이용중</button>
+        <button class="tab-i" onclick="setTab('ended',this)">종료</button>
+      </div>
+      <div class="fchips">
+        <button class="fchip active" onclick="setFilter('전체',this)">전체</button>
+        <button class="fchip" onclick="setFilter('코인노래방',this)">코인노래방</button>
+        <button class="fchip" onclick="setFilter('닌텐도',this)">닌텐도</button>
+        <button class="fchip" onclick="setFilter('오락기',this)">오락기</button>
+        <button class="fchip" onclick="setFilter('포켓볼',this)">포켓볼</button>
+        <button class="fchip" onclick="setFilter('PC',this)">PC</button>
+        <button class="fchip" onclick="setFilter('보드게임',this)">보드게임</button>
+      </div>
+      <div class="twrap">
+        <table class="rtbl"><thead><tr><th>#</th><th>날짜</th><th>시간</th><th>이름</th><th>연락처</th><th>시설</th><th>부스</th><th>게임명</th><th>상태</th></tr></thead>
+        <tbody id="rec-tbody"></tbody></table>
+      </div>
+      <div id="rec-empty" style="text-align:center;padding:28px;font-size:13px;color:var(--txt2);display:none;">📭 기록이 없습니다</div>
+      <div id="rec-count" style="font-size:12px;color:var(--txt2);margin-top:10px;text-align:right;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 관리자 비밀번호 -->
+<div class="ov" id="ov-pw">
+  <div class="mbox">
+    <div class="mhd" style="background:#1f2937;">
+      <h3>🔒 관리자 인증</h3>
+      <button class="mcl" onclick="closeModal('ov-pw')">✕</button>
+    </div>
+    <div class="mbdy">
+      <div class="fg">
+        <label class="fl">비밀번호를 입력해 주세요</label>
+        <input class="fi" id="pw-input" type="password" placeholder="비밀번호" maxlength="10" autocomplete="off"
+          onkeydown="if(event.key==='Enter')checkPw()">
+      </div>
+      <div id="pw-err" style="color:var(--red);font-size:13px;margin-bottom:8px;display:none;">비밀번호가 틀렸습니다</div>
+      <button class="btn" style="background:#1f2937;color:white;margin-top:0;" onclick="checkPw()">확인</button>
+      <button class="btn btn-gray" onclick="closeModal('ov-pw')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 인쇄 미리보기 -->
+<div class="ov" id="ov-print">
+  <div class="mbox wide">
+    <div class="mhd amber">
+      <h3>🖨️ 인쇄 미리보기</h3>
+      <button class="mcl" onclick="closeModal('ov-print')">✕</button>
+    </div>
+    <div class="mbdy">
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="btn btn-a" style="width:auto;padding:10px 20px;font-size:14px;margin-top:0;" onclick="doPrint()">🖨️ 인쇄 실행</button>
+        <button class="btn btn-gray" style="width:auto;padding:10px 20px;font-size:14px;margin-top:0;" onclick="closeModal('ov-print')">닫기</button>
+      </div>
+      <div id="print-preview"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const FACS=[
+  {id:'karaoke',name:'코인노래방',emoji:'🎤',total:2,booths:['1번 부스','2번 부스'],type:'booth'},
+  {id:'nintendo',name:'닌텐도',emoji:'🕹️',total:5,booths:['1번','2번','3번','4번','5번'],type:'booth',needGame:true},
+  {id:'arcade',name:'오락기',emoji:'👾',total:4,booths:['1번','2번','3번','4번'],type:'booth'},
+  {id:'pool',name:'포켓볼',emoji:'🎱',total:1,booths:['1다이'],type:'booth'},
+  {id:'pc',name:'PC',emoji:'💻',total:6,booths:['PC1','PC2','PC3','PC4','PC5','PC6'],type:'pc'},
+  {id:'board',name:'보드게임',emoji:'🎲',total:null,booths:null,type:'free'},
+];
+const ADMIN_PW='2230';
+const SERVER=`${location.protocol}//${location.hostname}:3000`;
+
+let state={records:[],pcStatus:{},pcQueue:[]};
+let selBooth=null,curFac=null,recTab='all',recFilter='전체';
+let sse=null;
+
+// ===================== INIT =====================
+window.onload=()=>{
+  tickClock(); setInterval(tickClock,1000);
+  phoneMask('reg-phone'); phoneMask('pc-phone');
+  connectSSE();
+  document.querySelectorAll('.ov').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id);}));
+};
+
+function connectSSE(){
+  setConn('ing','서버 연결 중...');
+  sse=new EventSource(`${SERVER}/events`);
+  sse.addEventListener('init',e=>{
+    state=JSON.parse(e.data);
+    renderAll();
+    setConn('ok','서버 연결됨 ✓');
+  });
+  sse.addEventListener('update',e=>{
+    state=JSON.parse(e.data);
+    renderAll();
+  });
+  sse.addEventListener('notify',e=>{
+    const d=JSON.parse(e.data);
+    toast('🔔 '+d.message);
+  });
+  sse.onerror=()=>{
+    setConn('err','연결 끊김 — 재연결 중...');
+    setTimeout(connectSSE,3000);
+  };
+}
+
+function setConn(type,msg){
+  const dot=document.getElementById('conn-dot');
+  dot.className='conn-dot conn-'+type;
+  document.getElementById('conn-txt').textContent=msg;
+}
+
+function renderAll(){
+  renderFacGrid();
+  if(document.getElementById('ov-pc').classList.contains('open')) renderPCModal();
+}
+
+// ===================== CLOCK =====================
+function tickClock(){
+  const n=new Date();
+  document.getElementById('clk-t').textContent=n.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const days=['일','월','화','수','목','금','토'];
+  document.getElementById('clk-d').textContent=`${n.getFullYear()}년 ${n.getMonth()+1}월 ${n.getDate()}일 (${days[n.getDay()]})`;
+}
+function nowStr(){return new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+function todayStr(){return new Date().toLocaleDateString('ko-KR');}
+
+// ===================== FACILITY GRID =====================
+function renderFacGrid(){
+  const g=document.getElementById('fac-grid');
+  g.innerHTML='';
+  FACS.forEach(f=>{
+    const free=countFree(f);
+    let ac,at;
+    if(f.type==='free'){ac='av-ok';at='자유이용';}
+    else if(free===0){ac='av-full';at='만석';}
+    else if(free<=1){ac='av-warn';at=free+'자리';}
+    else{ac='av-ok';at=free+'자리';}
+    const btn=document.createElement('button');
+    btn.className='fac-card'+(f.type==='pc'?' pc':'');
+    btn.innerHTML=`<span class="avail ${ac}">${at}</span><span class="fac-em">${f.emoji}</span><div class="fac-nm">${f.name}</div><div class="fac-sb">${f.total?'총 '+f.total+'개':'자유 이용'}</div>`;
+    btn.onclick=()=>openFac(f);
+    g.appendChild(btn);
+  });
+}
+function countFree(f){
+  if(f.type==='free') return 99;
+  if(f.type==='pc') return Object.values(state.pcStatus).filter(s=>s.free).length;
+  if(!f.booths) return 99;
+  const used=state.records.filter(r=>r.facility===f.name&&r.active).map(r=>r.booth);
+  return f.booths.filter(b=>!used.includes(b)).length;
+}
+
+// ===================== OPEN FACILITY =====================
+function openFac(f){
+  if(f.type==='pc'){openPCModal();return;}
+  curFac=f; selBooth=null;
+  document.getElementById('reg-title').textContent=f.emoji+' '+f.name+' 이용 등록';
+  document.getElementById('reg-info').innerHTML=`<b>${f.name}</b> 이용을 위해 아래 정보를 입력해 주세요.`;
+  document.getElementById('reg-time').value=nowStr();
+  document.getElementById('reg-name').value='';
+  document.getElementById('reg-phone').value='';
+  document.getElementById('reg-game').value='';
+  document.getElementById('grp-game').style.display=f.needGame?'block':'none';
+  const gb=document.getElementById('grp-booth');
+  const bg=document.getElementById('reg-booths');
+  if(f.type==='free'||!f.booths){gb.style.display='none';selBooth='자유이용';}
+  else{
+    gb.style.display='block'; bg.innerHTML='';
+    const used=state.records.filter(r=>r.facility===f.name&&r.active).map(r=>r.booth);
+    f.booths.forEach(b=>{
+      const c=document.createElement('div');
+      c.className='bchip'+(used.includes(b)?' occ':'');
+      c.textContent=b;
+      if(!used.includes(b))c.onclick=()=>{bg.querySelectorAll('.bchip:not(.occ)').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');selBooth=b;};
+      bg.appendChild(c);
+    });
+  }
+  openModal('ov-reg');
+  setTimeout(()=>document.getElementById('reg-name').focus(),300);
+}
+
+async function submitReg(){
+  const name=document.getElementById('reg-name').value.trim();
+  const phone=document.getElementById('reg-phone').value.trim();
+  const game=document.getElementById('reg-game').value.trim();
+  if(!name){toast('이름을 입력해 주세요');return;}
+  if(!phone){toast('연락처를 입력해 주세요');return;}
+  if(curFac.needGame&&!game){toast('게임 이름을 입력해 주세요');return;}
+  if(curFac.booths&&!selBooth){toast('부스를 선택해 주세요');return;}
+  try{
+    const r=await api('/api/register',{name,phone,facility:curFac.name,booth:selBooth||'-',game:curFac.needGame?game:'-'});
+    if(r.ok){closeModal('ov-reg');toast('✅ '+curFac.name+' 이용 등록 완료!');}
+  }catch(e){toast('서버 연결 오류');}
+}
+
+// ===================== PC MODAL =====================
+function openPCModal(){
+  selBooth=null;
+  document.getElementById('pc-name').value='';
+  document.getElementById('pc-phone').value='';
+  renderPCModal();
+  openModal('ov-pc');
+}
+function renderPCModal(){
+  renderPCTiles();
+  renderPCBoothChips();
+  renderPCQueue();
+}
+function renderPCTiles(){
+  const g=document.getElementById('pc-tiles'); g.innerHTML='';
+  for(let i=1;i<=6;i++){
+    const k='PC'+i; const s=state.pcStatus[k]||{free:true};
+    const d=document.createElement('div');
+    d.className='pc-tile '+(s.free?'free':'busy');
+    d.innerHTML=`<div class="pc-num">${i}</div><div class="pc-lbl">${s.free?'✓ 이용가능':'● 이용중'}</div><div class="pc-usr">${s.user||''}</div>${!s.free&&s.endTime?`<div class="pc-end">~${s.endTime}</div>`:''}`;
+    g.appendChild(d);
+  }
+}
+function renderPCBoothChips(){
+  const g=document.getElementById('pc-booth-chips'); g.innerHTML='';
+  let any=false;
+  for(let i=1;i<=6;i++){
+    const k='PC'+i;
+    if(state.pcStatus[k]&&state.pcStatus[k].free){
+      any=true;
+      const c=document.createElement('div');
+      c.className='bchip';
+      c.textContent=k;
+      c.onclick=()=>{g.querySelectorAll('.bchip').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');selBooth=k;};
+      g.appendChild(c);
+    }
+  }
+  if(!any)g.innerHTML='<span style="font-size:13px;color:var(--red);">현재 빈 자리 없음</span>';
+}
+function renderPCQueue(){
+  const d=document.getElementById('pc-queue-disp');
+  const q=state.pcQueue||[];
+  if(!q.length){d.innerHTML='<div style="font-size:12px;color:var(--txt2);padding:4px 0;">대기 없음</div>';return;}
+  d.innerHTML='';
+  q.forEach((x,i)=>{const el=document.createElement('div');el.className='qi';el.innerHTML=`<div class="qr">${i+1}</div><div><div class="qn">${x.name}</div><div class="qm">${x.phone} · ${x.time}</div></div>`;d.appendChild(el);});
+}
+
+async function submitPCUse(){
+  const name=document.getElementById('pc-name').value.trim();
+  const phone=document.getElementById('pc-phone').value.trim();
+  if(!name){toast('이름을 입력해 주세요');return;}
+  if(!phone){toast('연락처를 입력해 주세요');return;}
+  if(!selBooth){toast('PC 번호를 선택해 주세요');return;}
+  try{
+    const r=await api('/api/pc/start',{name,phone,pcKey:selBooth});
+    if(r.ok){closeModal('ov-pc');toast('✅ '+selBooth+' 등록 완료! (1시간 후 자동 종료)');}
+    else toast(r.error||'오류');
+  }catch(e){toast('서버 연결 오류');}
+}
+async function submitPCQueue(){
+  const name=document.getElementById('pc-name').value.trim();
+  const phone=document.getElementById('pc-phone').value.trim();
+  if(!name){toast('이름을 입력해 주세요');return;}
+  if(!phone){toast('연락처를 입력해 주세요');return;}
+  try{
+    const r=await api('/api/pc/queue',{name,phone});
+    if(r.ok){
+      document.getElementById('pc-name').value='';
+      document.getElementById('pc-phone').value='';
+      toast('⏳ 대기 '+r.position+'번째 등록 완료!');
+    }
+  }catch(e){toast('서버 연결 오류');}
+}
+
+// ===================== RECORDS =====================
+function openRecords(){renderRecTable();openModal('ov-rec');}
+function setTab(tab,btn){recTab=tab;document.querySelectorAll('.tab-i').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderRecTable();}
+function setFilter(f,btn){recFilter=f;document.querySelectorAll('.fchip').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderRecTable();}
+function getFiltered(){
+  let d=[...state.records];
+  if(recTab==='today')d=d.filter(r=>r.date===todayStr());
+  if(recTab==='active')d=d.filter(r=>r.active);
+  if(recTab==='ended')d=d.filter(r=>!r.active);
+  if(recFilter!=='전체')d=d.filter(r=>r.facility===recFilter);
+  return d.reverse();
+}
+function renderRecTable(){
+  const data=getFiltered();
+  const tb=document.getElementById('rec-tbody'); tb.innerHTML='';
+  document.getElementById('rec-empty').style.display=data.length?'none':'block';
+  document.getElementById('rec-count').textContent=`총 ${data.length}건`;
+  const fc={'코인노래방':'ca','닌텐도':'cp','오락기':'cb','포켓볼':'cb','PC':'cb','보드게임':'cg'};
+  data.forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="color:var(--txt2);font-size:11px">${r.id}</td><td style="font-size:11px;white-space:nowrap">${r.date}</td><td style="font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums">${r.time}</td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;color:var(--txt2)">${r.phone}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:12px">${r.booth}</td><td style="font-size:11px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><span class="chip ${r.active?'cg':'cr'}">${r.active?'이용중':'종료'}</span></td>`;
+    tb.appendChild(tr);
+  });
+}
+
+// ===================== PRINT =====================
+function printRecords(){
+  const data=getFiltered();
+  const rows=data.map(r=>`<tr><td>${r.id}</td><td>${r.date}</td><td>${r.time}</td><td><b>${r.name}</b></td><td>${r.phone}</td><td>${r.facility}</td><td>${r.booth}</td><td>${r.game!=='-'?r.game:''}</td></tr>`).join('');
+  const now=new Date();
+  const html=`<div style="font-family:'Noto Sans KR','Malgun Gothic',sans-serif;padding:20px;">
+    <div style="text-align:center;border-bottom:3px double #1a6b3c;padding-bottom:14px;margin-bottom:16px;">
+      <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">광양시청소년수련관</div>
+      <div style="font-size:24px;font-weight:900;color:#1a6b3c;">들락날락 시설 이용 기록부</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #e5e7eb;">
+      <span>출력일시: ${now.toLocaleString('ko-KR')}</span>
+      <span>필터: ${recFilter} / ${recTab==='all'?'전체':recTab==='today'?'오늘':recTab==='active'?'이용중':'종료'}</span>
+      <span>총 ${data.length}건</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">#</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">날짜</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">시간</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">이름</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">연락처</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">시설</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">부스/번호</th>
+        <th style="background:#1a6b3c;color:white;padding:8px;border:1px solid #0f4a28;text-align:center;">게임명</th>
+      </tr></thead>
+      <tbody>${data.length?rows:'<tr><td colspan="8" style="text-align:center;padding:20px;color:#9ca3af;">기록이 없습니다</td></tr>'}</tbody>
+    </table>
+    <div style="margin-top:20px;display:flex;justify-content:flex-end;">
+      <div style="text-align:right;font-size:13px;font-weight:600;color:#1a6b3c;">광양시청소년문화센터</div>
+    </div>
+    <div style="margin-top:12px;text-align:center;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;">
+      광양시청소년수련관 청소년놀이공간 들락날락 · 본 기록은 시설 이용 증빙자료입니다
+    </div>
+  </div>`;
+  document.getElementById('print-preview').innerHTML=html;
+  closeModal('ov-rec');
+  openModal('ov-print');
+}
+function doPrint(){
+  const content=document.getElementById('print-preview').innerHTML;
+  const w=window.open('','_blank','width=900,height=700');
+  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>들락날락 이용기록부</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Noto Sans KR','Malgun Gothic',sans-serif;background:white;}
+  table{width:100%;border-collapse:collapse;}th,td{border:1px solid #d1d5db;padding:7px 10px;}
+  th{background:#1a6b3c!important;color:white!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  tr:nth-child(even) td{background:#f0faf4;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style>
+  </head><body>${content}</body></html>`);
+  w.document.close(); w.focus();
+  setTimeout(()=>w.print(),800);
+}
+function downloadCSV(){
+  const data=getFiltered();
+  const hdr=['#','날짜','시간','이름','연락처','시설','부스/번호','게임명','상태'];
+  const rows=data.map(r=>[r.id,r.date,r.time,r.name,r.phone,r.facility,r.booth,r.game,r.active?'이용중':'종료']);
+  const csv='\uFEFF'+[hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`들락날락_이용기록_${todayStr().replace(/\./g,'')}.csv`;
+  a.click();
+  toast('⬇️ CSV 다운로드 완료');
+}
+
+// ===================== ADMIN =====================
+function openAdmin(){openModal('ov-pw');setTimeout(()=>document.getElementById('pw-input').focus(),300);}
+function checkPw(){
+  const v=document.getElementById('pw-input').value;
+  if(v===ADMIN_PW){
+    document.getElementById('pw-err').style.display='none';
+    document.getElementById('pw-input').value='';
+    closeModal('ov-pw');
+    window.location.href=`${SERVER}/admin.html`;
+  }else{
+    document.getElementById('pw-err').style.display='block';
+    document.getElementById('pw-input').value='';
+    document.getElementById('pw-input').focus();
+  }
+}
+
+// ===================== HELPERS =====================
+async function api(path,body){
+  const r=await fetch(SERVER+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return r.json();
+}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function phoneMask(id){
+  document.getElementById(id).addEventListener('input',function(){
+    let v=this.value.replace(/\D/g,'');
+    if(v.length>11)v=v.slice(0,11);
+    if(v.length>7)v=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+    else if(v.length>3)v=v.slice(0,3)+'-'+v.slice(3);
+    this.value=v;
+  });
+}
+let _tt;
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),2800);}
+</script>
+</body>
+</html>
