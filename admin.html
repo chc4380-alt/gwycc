@@ -351,7 +351,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#111827;color:var(--txt);m
 
 <script>
 const ADMIN_PW='2230';
-const SERVER=`https://gwycc-production.up.railway.app`;
+const SERVER=`${location.protocol}//${location.hostname}:3000`;
 
 let state={records:[],pcStatus:{},pcQueue:[]};
 let recTab='all',recFilter='전체';
