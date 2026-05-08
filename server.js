@@ -216,6 +216,17 @@ app.post('/api/end', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ===================== API: 기록 삭제 =====================
+app.delete('/api/record/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: 'id 필요' });
+  const { error } = await supabase.from('records').delete().eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  const state = await getState();
+  broadcast('update', state);
+  res.json({ ok: true });
+});
+
 // ===================== API: 공지사항 =====================
 app.get('/api/notices', async (req, res) => {
   const { data } = await supabase.from('notices').select('*').eq('active', true).order('id', { ascending: false });
