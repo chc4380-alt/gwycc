@@ -667,9 +667,6 @@ async function deleteRecord(id){
     else toast('삭제 실패: '+d.error);
   }catch(e){toast('서버 연결 오류');}
 }
-    tb.appendChild(tr);
-  });
-}
 function printRecords(){
   const data=getFiltered();
   const now=new Date();
