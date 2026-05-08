@@ -360,7 +360,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       </div>
       <div class="twrap">
         <table class="rtbl">
-          <thead><tr><th>순번</th><th>날짜</th><th>시간</th><th>이름</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th></tr></thead>
+          <thead><tr><th>순번</th><th>날짜</th><th>시간</th><th>이름</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th><th>삭제</th></tr></thead>
           <tbody id="rec-tbody"></tbody>
         </table>
       </div>
@@ -750,9 +750,19 @@ function renderRecTable(){
   const fc={'코인노래방':'ca','닌텐도':'cp','오락기':'cb','포켓볼':'cb','PC':'cb','보드게임':'cg'};
   data.forEach((r,idx)=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);">${idx+1}</td><td style="font-size:10px;white-space:nowrap">${r.date}</td><td style="font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums">${r.time}</td><td style="font-weight:600">${r.name}</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:var(--pur)">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td>`;
+    tr.id='rec-row-'+r.id;
+    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);">${idx+1}</td><td style="font-size:10px;white-space:nowrap">${r.date}</td><td style="font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums">${r.time}</td><td style="font-weight:600">${r.name}</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:var(--pur)">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
     tb.appendChild(tr);
   });
+}
+async function deleteRecord(id){
+  if(!confirm('이 기록을 삭제하시겠습니까?'))return;
+  try{
+    const r=await fetch(SERVER+'/api/record/'+id,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok){toast('🗑️ 기록 삭제 완료');renderRecTable();}
+    else toast('삭제 실패: '+d.error);
+  }catch(e){toast('서버 연결 오류');}
 }
 
 // ===================== PRINT =====================
