@@ -344,7 +344,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
           </div>
           <div class="twrap">
             <table class="rtbl">
-              <thead><tr><th>순번</th><th>날짜·시간</th><th>이름</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th><th>상태</th><th>삭제</th></tr></thead>
+              <thead><tr><th>순번</th><th>날짜·시간</th><th>이름</th><th>성별</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th><th>상태</th><th>삭제</th></tr></thead>
               <tbody id="rec-tbody"></tbody>
             </table>
           </div>
@@ -694,7 +694,8 @@ function renderRecTable(){
   const fc={'코인노래방':'ca','닌텐도':'cp','오락기':'cb','포켓볼':'cb','PC':'cb','보드게임':'cg'};
   data.forEach((r,idx)=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:#2d9d5c;font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:#7c3aed">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><span class="chip ${r.active?'cg':'cr'}">${r.active?'이용중':'종료'}</span></td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
+    const gd=r.gender==='남'?'👦 남':r.gender==='여'?'👧 여':r.gender||'-';
+    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:#2d9d5c;font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;text-align:center">${gd}</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:#7c3aed">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><span class="chip ${r.active?'cg':'cr'}">${r.active?'이용중':'종료'}</span></td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
     tb.appendChild(tr);
   });
 }
@@ -712,7 +713,7 @@ function printRecords(){
   const dateVal=document.getElementById('date-filter')?.value||'';
   const tabLabel={all:'전체',today:'오늘',active:'이용중',ended:'종료'}[recTab];
   const printTitle=dateVal?`${dateVal} 이용 기록`:`${recFilter} / ${tabLabel}`;
-  const rows=data.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${r.date} ${fmtTime(r.time)}</td><td><b>${r.name}</b></td><td>${r.phone}</td><td>${r.grade||'-'}</td><td>${r.facility}</td><td>${r.booth}</td><td>${r.game!=='-'?r.game:''}</td></tr>`).join('');
+  const rows=data.map((r,i)=>{const gd=r.gender==='남'?'남':r.gender==='여'?'여':r.gender||'-';return`<tr><td style="text-align:center">${i+1}</td><td>${r.date} ${fmtTime(r.time)}</td><td><b>${r.name}</b></td><td>${gd}</td><td>${r.phone}</td><td>${r.grade||'-'}</td><td>${r.facility}</td><td>${r.booth}</td><td>${r.game!=='-'?r.game:''}</td></tr>`}).join('');
   const html=`<div style="font-family:'Noto Sans KR','Malgun Gothic',sans-serif;padding:16px;">
     <div style="text-align:center;border-bottom:3px double #1a6b3c;padding-bottom:12px;margin-bottom:12px;">
       <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">광양시청소년문화센터</div>
@@ -724,6 +725,7 @@ function printRecords(){
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:5%">순번</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;width:16%">날짜·시간</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;width:10%">이름</th>
+        <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;width:6%">성별</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;width:13%">연락처</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;width:10%">학년</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;width:10%">시설</th>
@@ -757,8 +759,8 @@ function doPrint(){
 }
 function downloadCSV(){
   const data=getFiltered();
-  const hdr=['순번','날짜','시간','이름','연락처','학년','시설','부스/번호','게임명','상태'];
-  const rows=data.map((r,i)=>[i+1,r.date,r.time,r.name,r.phone,r.grade||'-',r.facility,r.booth,r.game,r.active?'이용중':'종료']);
+  const hdr=['순번','날짜·시간','이름','성별','연락처','학년','시설','부스/번호','게임명','상태'];
+  const rows=data.map((r,i)=>[i+1,`${r.date} ${fmtTime(r.time)}`,r.name,r.gender||'-',r.phone,r.grade||'-',r.facility,r.booth,r.game,r.active?'이용중':'종료']);
   const csv='\uFEFF'+[hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
