@@ -108,6 +108,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f0f4f0;color:var(--txt);m
 .grade-num:hover{border-color:var(--g1);background:var(--g4);}
 .grade-num.sel{border-color:var(--g1);background:var(--g1);color:white;}
 
+/* GENDER SELECTOR */
+.gender-row{display:flex;gap:8px;}
+.gender-chip{flex:1;padding:9px 8px;border:1.5px solid var(--bd);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .14s;text-align:center;background:var(--bg);user-select:none;}
+.gender-chip:hover{border-color:var(--g1);background:var(--g4);}
+.gender-chip.male.sel{border-color:#1d6fb5;background:#1d6fb5;color:white;}
+.gender-chip.female.sel{border-color:#db2777;background:#db2777;color:white;}
+
 /* BUTTONS */
 .btn{width:100%;padding:12px;border:none;border-radius:var(--rs);font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s;margin-top:6px;display:block;}
 .btn-g{background:var(--g1);color:white;}.btn-g:hover{background:#145a30;}
@@ -241,6 +248,14 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="fg"><label class="fl">이용 시작 시간</label><input class="fi" id="reg-time" readonly style="background:var(--bg2);cursor:default;"></div>
       <div class="fg"><label class="fl">이름 <span class="req">*</span></label><input class="fi" id="reg-name" placeholder="이름을 입력해 주세요" maxlength="20" autocomplete="off"></div>
       <div class="fg"><label class="fl">연락처 <span class="req">*</span></label><input class="fi" id="reg-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
+      <!-- 성별 선택 -->
+      <div class="fg">
+        <label class="fl">성별 <span class="req">*</span></label>
+        <div class="gender-row" id="reg-gender-row">
+          <div class="gender-chip male" onclick="selectGender('reg','남')">👦 남자</div>
+          <div class="gender-chip female" onclick="selectGender('reg','여')">👧 여자</div>
+        </div>
+      </div>
       <!-- 학년 선택 -->
       <div class="fg">
         <label class="fl">학년 <span class="req">*</span></label>
@@ -282,6 +297,13 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="fg"><label class="fl">이름 <span class="req">*</span></label><input class="fi" id="pc-name" placeholder="이름을 입력해 주세요" maxlength="20" autocomplete="off"></div>
       <div class="fg"><label class="fl">연락처 <span class="req">*</span></label><input class="fi" id="pc-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
       <div class="fg">
+        <label class="fl">성별 <span class="req">*</span></label>
+        <div class="gender-row" id="pc-gender-row">
+          <div class="gender-chip male" onclick="selectGender('pc','남')">👦 남자</div>
+          <div class="gender-chip female" onclick="selectGender('pc','여')">👧 여자</div>
+        </div>
+      </div>
+      <div class="fg">
         <label class="fl">학년 <span class="req">*</span></label>
         <div class="grade-row" id="pc-grade-school">
           <div class="grade-chip elem" onclick="selectSchoolPC('초등')">초등</div>
@@ -314,6 +336,13 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div style="font-size:13px;font-weight:700;margin-bottom:12px;">이용 등록 / 대기 신청</div>
       <div class="fg"><label class="fl">이름 <span class="req">*</span></label><input class="fi" id="kr-name" placeholder="이름을 입력해 주세요" maxlength="20" autocomplete="off"></div>
       <div class="fg"><label class="fl">연락처 <span class="req">*</span></label><input class="fi" id="kr-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
+      <div class="fg">
+        <label class="fl">성별 <span class="req">*</span></label>
+        <div class="gender-row" id="kr-gender-row">
+          <div class="gender-chip male" onclick="selectGender('kr','남')">👦 남자</div>
+          <div class="gender-chip female" onclick="selectGender('kr','여')">👧 여자</div>
+        </div>
+      </div>
       <div class="fg">
         <label class="fl">학년 <span class="req">*</span></label>
         <div class="grade-row" id="kr-grade-school">
@@ -368,7 +397,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       </div>
       <div class="twrap">
         <table class="rtbl">
-          <thead><tr><th>순번</th><th>날짜·시간</th><th>이름</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th><th>삭제</th></tr></thead>
+          <thead><tr><th>순번</th><th>날짜·시간</th><th>이름</th><th>성별</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th><th>삭제</th></tr></thead>
           <tbody id="rec-tbody"></tbody>
         </table>
       </div>
@@ -456,6 +485,20 @@ let krSelBooth=null;
 let regGrade={school:'',num:''};
 let pcGrade={school:'',num:''};
 let krGrade={school:'',num:''};
+// 성별 상태
+let regGender='',pcGender='',krGender='';
+
+// ===================== 성별 선택 함수 =====================
+function selectGender(prefix,val){
+  if(prefix==='reg')regGender=val;
+  else if(prefix==='pc')pcGender=val;
+  else if(prefix==='kr')krGender=val;
+  const row=document.getElementById(prefix+'-gender-row');
+  row.querySelectorAll('.gender-chip').forEach(c=>{
+    c.classList.remove('sel');
+    if((val==='남'&&c.classList.contains('male'))||(val==='여'&&c.classList.contains('female')))c.classList.add('sel');
+  });
+}
 
 // ===================== 학년 선택 함수 =====================
 function makeGradeNums(school,numRowId,gradeObj,schoolRowId){
@@ -589,6 +632,8 @@ function openFac(f){
   document.getElementById('reg-game').value='';
   document.getElementById('reg-board-game').value='';
   resetGrade('reg',regGrade);
+  regGender='';
+  document.getElementById('reg-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));
   document.getElementById('grp-game').style.display=f.needGame?'block':'none';
   document.getElementById('grp-board-game').style.display=f.id==='board'?'block':'none';
   const gb=document.getElementById('grp-booth'),bg=document.getElementById('reg-booths');
@@ -614,6 +659,7 @@ async function submitReg(){
   const boardGame=document.getElementById('reg-board-game').value.trim();
   if(!name){toast('이름을 입력해 주세요');return;}
   if(!phone){toast('연락처를 입력해 주세요');return;}
+  if(!regGender){toast('성별을 선택해 주세요');return;}
   if(!regGrade.school){toast('학교급을 선택해 주세요');return;}
   if(!regGrade.num){toast('학년을 선택해 주세요');return;}
   if(curFac.needGame&&!game){toast('게임 이름을 입력해 주세요');return;}
@@ -622,13 +668,13 @@ async function submitReg(){
   const grade=regGrade.school+' '+regGrade.num;
   const gameVal=curFac.needGame?game:(curFac.id==='board'?boardGame:'-');
   try{
-    const r=await api('/api/register',{name,phone,facility:curFac.name,booth:selBooth||'-',game:gameVal,grade});
+    const r=await api('/api/register',{name,phone,facility:curFac.name,booth:selBooth||'-',game:gameVal,grade,gender:regGender});
     if(r.ok){closeModal('ov-reg');toast('✅ '+curFac.name+' 이용 등록 완료!');}
   }catch(e){toast('서버 연결 오류');}
 }
 
 // ===================== PC MODAL =====================
-function openPCModal(){selBooth=null;document.getElementById('pc-name').value='';document.getElementById('pc-phone').value='';resetGrade('pc',pcGrade);renderPCModal();openModal('ov-pc');}
+function openPCModal(){selBooth=null;document.getElementById('pc-name').value='';document.getElementById('pc-phone').value='';resetGrade('pc',pcGrade);pcGender='';document.getElementById('pc-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));renderPCModal();openModal('ov-pc');}
 function renderPCModal(){renderPCTiles();renderPCBoothChips();renderPCQueue();}
 function renderPCTiles(){
   const g=document.getElementById('pc-tiles');g.innerHTML='';
@@ -664,26 +710,28 @@ async function submitPCUse(){
   const name=document.getElementById('pc-name').value.trim(),phone=document.getElementById('pc-phone').value.trim();
   if(!name){toast('이름을 입력해 주세요');return;}
   if(!phone){toast('연락처를 입력해 주세요');return;}
+  if(!pcGender){toast('성별을 선택해 주세요');return;}
   if(!pcGrade.school){toast('학교급을 선택해 주세요');return;}
   if(!pcGrade.num){toast('학년을 선택해 주세요');return;}
   if(!selBooth){toast('PC 번호를 선택해 주세요');return;}
   const grade=pcGrade.school+' '+pcGrade.num;
-  try{const r=await api('/api/pc/start',{name,phone,pcKey:selBooth,grade});if(r.ok){closeModal('ov-pc');toast('✅ '+selBooth+' 등록 완료! (1시간 후 자동 종료)');}}
+  try{const r=await api('/api/pc/start',{name,phone,pcKey:selBooth,grade,gender:pcGender});if(r.ok){closeModal('ov-pc');toast('✅ '+selBooth+' 등록 완료! (1시간 후 자동 종료)');}}
   catch(e){toast('서버 연결 오류');}
 }
 async function submitPCQueue(){
   const name=document.getElementById('pc-name').value.trim(),phone=document.getElementById('pc-phone').value.trim();
   if(!name){toast('이름을 입력해 주세요');return;}
   if(!phone){toast('연락처를 입력해 주세요');return;}
+  if(!pcGender){toast('성별을 선택해 주세요');return;}
   if(!pcGrade.school){toast('학교급을 선택해 주세요');return;}
   if(!pcGrade.num){toast('학년을 선택해 주세요');return;}
   const grade=pcGrade.school+' '+pcGrade.num;
-  try{const r=await api('/api/pc/queue',{name,phone,grade});if(r.ok){document.getElementById('pc-name').value='';document.getElementById('pc-phone').value='';resetGrade('pc',pcGrade);toast('⏳ 대기 '+r.position+'번째 등록 완료!');}}
+  try{const r=await api('/api/pc/queue',{name,phone,grade,gender:pcGender});if(r.ok){document.getElementById('pc-name').value='';document.getElementById('pc-phone').value='';resetGrade('pc',pcGrade);pcGender='';document.getElementById('pc-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));toast('⏳ 대기 '+r.position+'번째 등록 완료!');}}
   catch(e){toast('서버 연결 오류');}
 }
 
 // ===================== KARAOKE MODAL =====================
-function openKaraokeModal(){krSelBooth=null;document.getElementById('kr-name').value='';document.getElementById('kr-phone').value='';resetGrade('kr',krGrade);renderKaraokeModal();openModal('ov-karaoke');}
+function openKaraokeModal(){krSelBooth=null;document.getElementById('kr-name').value='';document.getElementById('kr-phone').value='';resetGrade('kr',krGrade);krGender='';document.getElementById('kr-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));renderKaraokeModal();openModal('ov-karaoke');}
 function renderKaraokeModal(){
   // 부스 현황
   const statusEl=document.getElementById('karaoke-status');statusEl.innerHTML='';
@@ -719,21 +767,23 @@ async function submitKaraokeUse(){
   const name=document.getElementById('kr-name').value.trim(),phone=document.getElementById('kr-phone').value.trim();
   if(!name){toast('이름을 입력해 주세요');return;}
   if(!phone){toast('연락처를 입력해 주세요');return;}
+  if(!krGender){toast('성별을 선택해 주세요');return;}
   if(!krGrade.school){toast('학교급을 선택해 주세요');return;}
   if(!krGrade.num){toast('학년을 선택해 주세요');return;}
   if(!krSelBooth){toast('부스를 선택해 주세요');return;}
   const grade=krGrade.school+' '+krGrade.num;
-  try{const r=await api('/api/register',{name,phone,facility:'코인노래방',booth:krSelBooth,game:'-',grade});if(r.ok){closeModal('ov-karaoke');toast('✅ 코인노래방 '+krSelBooth+' 등록 완료!');}}
+  try{const r=await api('/api/register',{name,phone,facility:'코인노래방',booth:krSelBooth,game:'-',grade,gender:krGender});if(r.ok){closeModal('ov-karaoke');toast('✅ 코인노래방 '+krSelBooth+' 등록 완료!');}}
   catch(e){toast('서버 연결 오류');}
 }
 async function submitKaraokeQueue(){
   const name=document.getElementById('kr-name').value.trim(),phone=document.getElementById('kr-phone').value.trim();
   if(!name){toast('이름을 입력해 주세요');return;}
   if(!phone){toast('연락처를 입력해 주세요');return;}
+  if(!krGender){toast('성별을 선택해 주세요');return;}
   if(!krGrade.school){toast('학교급을 선택해 주세요');return;}
   if(!krGrade.num){toast('학년을 선택해 주세요');return;}
   const grade=krGrade.school+' '+krGrade.num;
-  try{const r=await api('/api/karaoke/queue',{name,phone,grade});if(r.ok){document.getElementById('kr-name').value='';document.getElementById('kr-phone').value='';resetGrade('kr',krGrade);toast('⏳ 코인노래방 대기 '+r.position+'번째 등록!');}}
+  try{const r=await api('/api/karaoke/queue',{name,phone,grade,gender:krGender});if(r.ok){document.getElementById('kr-name').value='';document.getElementById('kr-phone').value='';resetGrade('kr',krGrade);krGender='';document.getElementById('kr-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));toast('⏳ 코인노래방 대기 '+r.position+'번째 등록!');}}
   catch(e){toast('서버 연결 오류');}
 }
 
@@ -776,7 +826,8 @@ function renderRecTable(){
   data.forEach((r,idx)=>{
     const tr=document.createElement('tr');
     tr.id='rec-row-'+r.id;
-    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:var(--g2);font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:var(--pur)">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
+    const genderDisplay=r.gender==='남'?'👦 남':r.gender==='여'?'👧 여':r.gender||'-';
+    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:var(--g2);font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;text-align:center">${genderDisplay}</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:var(--pur)">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
     tb.appendChild(tr);
   });
 }
@@ -796,7 +847,7 @@ function printRecords(){
   const dateVal=document.getElementById('date-filter')?.value||'';
   const tabLabel={all:'전체',today:'오늘',active:'이용중',ended:'종료'}[recTab];
   const printTitle=dateVal?`${dateVal} 이용 기록`:`${recFilter} / ${tabLabel}`;
-  const rows=data.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${r.date} ${fmtTime(r.time)}</td><td><b>${r.name}</b></td><td>${r.phone}</td><td>${r.grade||'-'}</td><td>${r.facility}</td><td>${r.booth}</td><td>${r.game!=='-'?r.game:''}</td></tr>`).join('');
+  const rows=data.map((r,i)=>{const gd=r.gender==='남'?'👦 남':r.gender==='여'?'👧 여':r.gender||'-';return`<tr><td style="text-align:center">${i+1}</td><td>${r.date} ${fmtTime(r.time)}</td><td><b>${r.name}</b></td><td>${gd}</td><td>${r.phone}</td><td>${r.grade||'-'}</td><td>${r.facility}</td><td>${r.booth}</td><td>${r.game!=='-'?r.game:''}</td></tr>`}).join('');
   const html=`
   <div style="font-family:'Noto Sans KR','Malgun Gothic',sans-serif;padding:16px;">
     <div style="text-align:center;border-bottom:3px double #1a6b3c;padding-bottom:12px;margin-bottom:12px;">
@@ -809,7 +860,8 @@ function printRecords(){
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:5%">순번</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:16%">날짜·시간</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:10%">이름</th>
-        <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:14%">연락처</th>
+        <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:7%">성별</th>
+        <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:13%">연락처</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:10%">학년</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:11%">시설</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:11%">부스/번호</th>
@@ -852,8 +904,8 @@ function doPrint(){
 
 function downloadCSV(){
   const data=getFiltered();
-  const hdr=['순번','날짜','시간','이름','연락처','학년','시설','부스/번호','게임명'];
-  const rows=data.map((r,i)=>[i+1,r.date,r.time,r.name,r.phone,r.grade||'-',r.facility,r.booth,r.game]);
+  const hdr=['순번','날짜·시간','이름','성별','연락처','학년','시설','부스/번호','게임명'];
+  const rows=data.map((r,i)=>[i+1,`${r.date} ${fmtTime(r.time)}`,r.name,r.gender||'-',r.phone,r.grade||'-',r.facility,r.booth,r.game]);
   const csv='\uFEFF'+[hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));

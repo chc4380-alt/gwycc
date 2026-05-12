@@ -62,7 +62,7 @@ async function getState() {
     id: r.id, date: r.date, time: r.time,
     name: r.name, phone: r.phone, facility: r.facility,
     booth: r.booth, game: r.game || '-', active: r.active, endTime: r.end_time,
-    grade: r.grade || '-',
+    grade: r.grade || '-', gender: r.gender || '-',
   }));
 
   const pcStatus = {};
@@ -117,21 +117,22 @@ app.get('/api/state', async (req, res) => {
 
 // ===================== API: 일반 시설 등록 =====================
 app.post('/api/register', async (req, res) => {
-  const { name, phone, facility, booth, game, grade } = req.body;
+  const { name, phone, facility, booth, game, grade, gender } = req.body;
   if (!name || !phone || !facility) return res.status(400).json({ error: '필수 항목 누락' });
   const { data, error } = await supabase.from('records').insert({
-    date: todayStr(), time: nowStr(), name, phone, facility, booth: booth || '-', game: game || '-', active: true, grade: grade || '-',
+    date: todayStr(), time: nowStr(), name, phone, facility, booth: booth || '-',
+    game: game || '-', active: true, grade: grade || '-', gender: gender || '-',
   }).select().single();
   if (error) return res.status(500).json({ error: error.message });
   const state = await getState();
   broadcast('update', state);
-  broadcast('notify', { type: 'register', message: `${facility} 등록 — ${name} ${grade||''} (${booth || '자유이용'})` });
+  broadcast('notify', { type: 'register', message: `${facility} 등록 — ${name} ${gender||''} ${grade||''} (${booth || '자유이용'})` });
   res.json({ ok: true, record: data });
 });
 
 // ===================== API: PC 시작 =====================
 app.post('/api/pc/start', async (req, res) => {
-  const { name, phone, pcKey, grade } = req.body;
+  const { name, phone, pcKey, grade, gender } = req.body;
   if (!name || !phone || !pcKey) return res.status(400).json({ error: '필수 항목 누락' });
   const { data: pc } = await supabase.from('pc_status').select('free').eq('pc_key', pcKey).single();
   if (!pc?.free) return res.status(400).json({ error: '이미 사용 중' });
@@ -139,13 +140,13 @@ app.post('/api/pc/start', async (req, res) => {
   const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
   await Promise.all([
     supabase.from('pc_status').update({ free: false, user_name: name, phone, start_time: t, end_time: endTimeStr, end_ms: endMs }).eq('pc_key', pcKey),
-    supabase.from('records').insert({ date: todayStr(), time: t, name, phone, facility: 'PC', booth: pcKey, game: '-', active: true, grade: grade || '-' }),
+    supabase.from('records').insert({ date: todayStr(), time: t, name, phone, facility: 'PC', booth: pcKey, game: '-', active: true, grade: grade || '-', gender: gender || '-' }),
   ]);
   if (pcTimers[pcKey]) clearTimeout(pcTimers[pcKey]);
   pcTimers[pcKey] = setTimeout(() => endPC(pcKey, true), 60 * 60 * 1000);
   const state = await getState();
   broadcast('update', state);
-  broadcast('notify', { type: 'pc_start', message: `${pcKey} 이용 시작 — ${name} ${grade||''} (종료: ${endTimeStr})`, pcKey });
+  broadcast('notify', { type: 'pc_start', message: `${pcKey} 이용 시작 — ${name} ${gender||''} ${grade||''} (종료: ${endTimeStr})`, pcKey });
   res.json({ ok: true, endTime: endTimeStr });
 });
 
@@ -213,6 +214,45 @@ app.post('/api/end', async (req, res) => {
   await supabase.from('records').update({ active: false, end_time: nowStr() }).eq('facility', facility).eq('booth', booth).eq('active', true);
   const state = await getState();
   broadcast('update', state);
+  res.json({ ok: true });
+});
+
+// ===================== PC 원격제어 설정 =====================
+const PC_CONFIG = {
+  PC1: { mac: '10-FF-E0-9A-E3-D9', ip: '192.168.0.121' },
+  PC2: { mac: '74-56-3C-EA-52-85', ip: '192.168.0.122' },
+  PC3: { mac: '74-56-3C-EF-A0-8D', ip: '192.168.0.123' },
+  PC4: { mac: '10-FF-E0-9A-E3-DA', ip: '192.168.0.124' },
+  PC5: { mac: '10-FF-E0-4C-19-20', ip: '192.168.0.125' },
+  PC6: { mac: '74-56-3C-EA-50-67', ip: '192.168.0.126' },
+};
+
+// 원격제어 명령 대기열 (키오스크 에이전트가 폴링)
+let pcCommands = {}; // { PC1: 'wakeup'|'shutdown'|null, ... }
+
+// API: 에이전트가 명령 확인 (키오스크 PC에서 5초마다 폴링)
+app.get('/api/pc/commands', (req, res) => {
+  const commands = { ...pcCommands };
+  // 명령 확인 후 초기화
+  Object.keys(pcCommands).forEach(k => { pcCommands[k] = null; });
+  res.json(commands);
+});
+
+// API: 관리자가 PC 켜기 명령
+app.post('/api/pc/wakeup', async (req, res) => {
+  const { pcKey } = req.body;
+  if (!PC_CONFIG[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
+  pcCommands[pcKey] = 'wakeup';
+  broadcast('notify', { type: 'pc_wakeup', message: `💡 ${pcKey} 켜기 명령 전송` });
+  res.json({ ok: true, mac: PC_CONFIG[pcKey].mac });
+});
+
+// API: 관리자가 PC 끄기 명령
+app.post('/api/pc/shutdown', async (req, res) => {
+  const { pcKey } = req.body;
+  if (!PC_CONFIG[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
+  pcCommands[pcKey] = 'shutdown';
+  broadcast('notify', { type: 'pc_shutdown', message: `🔴 ${pcKey} 끄기 명령 전송` });
   res.json({ ok: true });
 });
 

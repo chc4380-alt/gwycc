@@ -482,8 +482,11 @@ function renderPCAdmin(){
     const d=document.createElement('div');
     d.className='pc-card '+(s.free?'free':'busy');
     let btns=s.free
-      ?`<button class="btn-sm bs-g" onclick="quickStartPC('${k}')">이용시작</button>`
-      :`<button class="btn-sm bs-r" onclick="quickEndPC('${k}')">종료</button>${(state.pcQueue||[]).length>0?`<button class="btn-sm bs-a" onclick="assignQueue('${k}')">대기배정</button>`:''}`;
+      ?`<button class="btn-sm bs-g" onclick="quickStartPC('${k}')">이용시작</button>
+        <button class="btn-sm" style="background:#f59e0b;color:white;" onclick="wakeupPC('${k}')">💡 켜기</button>`
+      :`<button class="btn-sm bs-r" onclick="quickEndPC('${k}')">종료</button>
+        <button class="btn-sm" style="background:#374151;color:white;" onclick="shutdownPC('${k}')">🔴 끄기</button>
+        ${(state.pcQueue||[]).length>0?`<button class="btn-sm bs-a" onclick="assignQueue('${k}')">대기배정</button>`:''}`;
     let bar=!s.free&&s.endMs?`<div class="pc-progress"><div class="pc-prog-bar" id="bar-${k}" style="width:100%"></div></div><div class="pc-end-t" id="remain-${k}">~${s.endTime}</div>`:'';
     d.innerHTML=`<div class="pc-num">${i}</div><div class="pc-status">${s.free?'✓ 빈자리':'● 이용중'}</div><div class="pc-user">${s.user||''}</div>${bar}<div class="pc-btns">${btns}</div>`;
     g.appendChild(d);
@@ -506,6 +509,18 @@ function updateTimers(){
 async function quickStartPC(k){const name=prompt(`${k} 이용자:`);if(!name)return;const phone=prompt('연락처:')||'-';await api('/api/pc/start',{name,phone,pcKey:k});toast(`✅ ${k} 시작: ${name}`);}
 async function quickEndPC(k){if(!confirm(`${k} 종료?`))return;await api('/api/pc/end',{pcKey:k});toast(`${k} 종료`);}
 async function assignQueue(k){if(!confirm(`대기 1순위 → ${k} 배정?`))return;await api('/api/pc/queue-assign',{pcKey:k});toast('배정 완료');}
+async function wakeupPC(k){
+  if(!confirm(`${k} PC를 켜시겠습니까?\n(에이전트가 실행 중이어야 합니다)`))return;
+  const r=await api('/api/pc/wakeup',{pcKey:k});
+  if(r.ok)toast(`💡 ${k} 켜기 명령 전송 완료 (MAC: ${r.mac})`);
+  else toast('오류: '+r.error);
+}
+async function shutdownPC(k){
+  if(!confirm(`${k} PC를 끄시겠습니까?`))return;
+  const r=await api('/api/pc/shutdown',{pcKey:k});
+  if(r.ok)toast(`🔴 ${k} 끄기 명령 전송 완료`);
+  else toast('오류: '+r.error);
+}
 async function adminStartPC(){
   const name=document.getElementById('adm-pc-name').value.trim();
   const phone=document.getElementById('adm-pc-phone').value.trim();
