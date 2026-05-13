@@ -548,11 +548,32 @@ window.onload=()=>{
 
 function connectSSE(){
   setConn('ing','서버 연결 중...');
+  if(window._sse){try{window._sse.close();}catch(e){}}
   const sse=new EventSource(`${SERVER}/events`);
+  window._sse=sse;
   sse.addEventListener('init',e=>{state=JSON.parse(e.data);renderAll();setConn('ok','서버 연결됨 ✓');});
   sse.addEventListener('update',e=>{state=JSON.parse(e.data);renderAll();});
   sse.addEventListener('notify',e=>{const d=JSON.parse(e.data);toast('🔔 '+d.message);});
-  sse.onerror=()=>{setConn('err','재연결 중...');setTimeout(connectSSE,3000);};
+  sse.onerror=()=>{
+    setConn('err','재연결 중...');
+    try{sse.close();}catch(e){}
+    setTimeout(connectSSE,2000);
+  };
+  // SSE 안 되면 폴링으로 fallback
+  setTimeout(()=>{
+    if(document.getElementById('conn-dot').classList.contains('conn-ing')){
+      console.log('[SSE 실패] 폴링 모드로 전환');
+      try{sse.close();}catch(e){}
+      startPolling();
+    }
+  },5000);
+}
+function startPolling(){
+  setConn('ok','연결됨 (폴링)');
+  fetch(`${SERVER}/api/state`).then(r=>r.json()).then(s=>{state=s;renderAll();}).catch(()=>{});
+  setInterval(()=>{
+    fetch(`${SERVER}/api/state`).then(r=>r.json()).then(s=>{state=s;renderAll();}).catch(()=>{});
+  },3000);
 }
 function setConn(t,m){document.getElementById('conn-dot').className='conn-dot conn-'+t;document.getElementById('conn-txt').textContent=m;}
 
