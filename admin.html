@@ -195,6 +195,31 @@ body{font-family:'Noto Sans KR',sans-serif;background:#111827;color:var(--txt);m
 .page.active{display:block;}
 
 hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
+
+/* PC 전원 상황판 */
+.power-board{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+.power-card{border-radius:12px;padding:16px 12px;text-align:center;border:2px solid transparent;transition:all .3s;position:relative;}
+.power-card.on{background:linear-gradient(135deg,#052e16,#14532d);border-color:#22c55e;box-shadow:0 0 20px rgba(34,197,94,.3);}
+.power-card.off{background:#1f2937;border-color:#374151;}
+.power-card.on .pw-num{color:#4ade80;font-size:28px;font-weight:900;}
+.power-card.off .pw-num{color:#6b7280;font-size:28px;font-weight:900;}
+.pw-label{font-size:11px;font-weight:700;margin-top:4px;}
+.power-card.on .pw-label{color:#4ade80;}
+.power-card.off .pw-label{color:#6b7280;}
+.pw-user{font-size:11px;color:#9ca3af;margin-top:3px;min-height:16px;}
+.pw-remain{font-size:10px;color:#f59e0b;margin-top:2px;min-height:14px;}
+.pw-indicator{width:8px;height:8px;border-radius:50%;position:absolute;top:10px;right:10px;}
+.power-card.on .pw-indicator{background:#22c55e;box-shadow:0 0 8px #22c55e;animation:blink 2s infinite;}
+.power-card.off .pw-indicator{background:#374151;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.pw-btns{display:flex;gap:4px;margin-top:10px;justify-content:center;}
+.pw-btn-on{background:#22c55e;color:#052e16;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .12s;}
+.pw-btn-on:hover{background:#16a34a;}
+.pw-btn-off{background:#ef4444;color:white;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .12s;}
+.pw-btn-off:hover{background:#dc2626;}
+.pw-btn-dis{background:#374151;color:#6b7280;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:not-allowed;font-family:'Noto Sans KR',sans-serif;}
+.power-legend{display:flex;gap:14px;font-size:11px;color:#9ca3af;margin-bottom:10px;align-items:center;}
+.legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
 </style>
 </head>
 <body>
@@ -251,8 +276,25 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
 
       <!-- PC 관리 -->
       <div class="page active" id="page-pc">
+        <!-- 실시간 전원 상황판 -->
+        <div class="sec-card" style="background:#111827;border:1px solid #374151;">
+          <div class="sec-title" style="color:#9ca3af;border-color:#374151;">⚡ PC 실시간 전원 상황판</div>
+          <div class="power-legend">
+            <span><span class="legend-dot" style="background:#22c55e;box-shadow:0 0 6px #22c55e;"></span>켜짐</span>
+            <span><span class="legend-dot" style="background:#374151;"></span>꺼짐</span>
+            <span><span class="legend-dot" style="background:#f59e0b;"></span>이용중</span>
+            <span style="margin-left:auto;font-size:10px;" id="power-update-time"></span>
+          </div>
+          <div class="power-board" id="power-board"></div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn-sm" style="background:#22c55e;color:#052e16;padding:7px 14px;" onclick="wakeupAllPC()">💡 전체 켜기</button>
+            <button class="btn-sm" style="background:#ef4444;color:white;padding:7px 14px;" onclick="shutdownAllPC()">🔴 전체 끄기</button>
+            <button class="btn-sm bs-gray" style="padding:7px 14px;" onclick="refreshPower()">🔄 새로고침</button>
+          </div>
+        </div>
+
         <div class="sec-card">
-          <div class="sec-title">💻 PC 상태 (1시간 자동 종료)</div>
+          <div class="sec-title">💻 PC 이용 현황 (피카 시간 등록용)</div>
           <div class="pc-admin-grid" id="pc-admin-grid"></div>
         </div>
         <div class="sec-card">
@@ -427,15 +469,77 @@ function initAdmin(){
   phoneMask('adm-pc-phone');
   connectSSE();
   setInterval(updateTimers,1000);
+  setInterval(fetchPowerStatus,5000); // 5초마다 전원 상태 갱신
 }
 
 function connectSSE(){
   setConn('ing','연결 중...');
   sse=new EventSource(`${SERVER}/events`);
-  sse.addEventListener('init',e=>{state=JSON.parse(e.data);renderAll();setConn('ok','실시간 연결됨 ✓');});
+  sse.addEventListener('init',e=>{state=JSON.parse(e.data);renderAll();setConn('ok','실시간 연결됨 ✓');fetchPowerStatus();});
   sse.addEventListener('update',e=>{state=JSON.parse(e.data);renderAll();});
+  sse.addEventListener('power',e=>{const d=JSON.parse(e.data);renderPowerBoard(d);});
   sse.addEventListener('notify',e=>{const d=JSON.parse(e.data);addNotif(d);});
   sse.onerror=()=>{setConn('err','재연결 중...');setTimeout(connectSSE,3000);};
+}
+
+// 전원 상태 가져오기
+async function fetchPowerStatus(){
+  try{
+    const r=await fetch(`${SERVER}/api/pc/power`);
+    const d=await r.json();
+    renderPowerBoard(d);
+  }catch(e){}
+}
+
+// 전원 상황판 렌더링
+function renderPowerBoard(powerData){
+  const board=document.getElementById('power-board');
+  if(!board)return;
+  const now=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const updateEl=document.getElementById('power-update-time');
+  if(updateEl)updateEl.textContent='업데이트: '+now;
+
+  board.innerHTML='';
+  for(let i=1;i<=6;i++){
+    const k='PC'+i;
+    const pw=powerData?powerData[k]:{on:false};
+    const usage=state.pcStatus?state.pcStatus[k]:null;
+    const isOn=pw&&pw.on;
+    const isUsing=usage&&!usage.free;
+
+    const card=document.createElement('div');
+    card.className='power-card '+(isOn?'on':'off');
+
+    let btnHtml='';
+    if(isOn){
+      btnHtml=`<button class="pw-btn-off" onclick="shutdownPC('${k}')">🔴 끄기</button>`;
+    }else{
+      btnHtml=`<button class="pw-btn-on" onclick="wakeupPC('${k}')">💡 켜기</button>`;
+    }
+
+    card.innerHTML=`
+      <div class="pw-indicator"></div>
+      <div class="pw-num">${i}</div>
+      <div class="pw-label">${isOn?'🟢 켜짐':'⚫ 꺼짐'}</div>
+      <div class="pw-user">${isUsing?(usage.user||'이용중'):'대기중'}</div>
+      <div class="pw-remain" id="pw-remain-${k}">${isUsing&&usage.endTime?'~'+usage.endTime:''}</div>
+      <div class="pw-btns">${btnHtml}</div>
+    `;
+    board.appendChild(card);
+  }
+}
+
+function refreshPower(){fetchPowerStatus();toast('🔄 전원 상태 새로고침');}
+
+async function wakeupAllPC(){
+  if(!confirm('모든 PC를 켜시겠습니까?'))return;
+  for(let i=1;i<=6;i++){await api('/api/pc/wakeup',{pcKey:'PC'+i});}
+  toast('💡 전체 켜기 명령 전송 완료');
+}
+async function shutdownAllPC(){
+  if(!confirm('모든 PC를 끄시겠습니까?'))return;
+  for(let i=1;i<=6;i++){await api('/api/pc/shutdown',{pcKey:'PC'+i});}
+  toast('🔴 전체 끄기 명령 전송 완료');
 }
 function setConn(t,m){document.getElementById('conn-dot').className='dot dot-'+t;document.getElementById('conn-txt').textContent=m;}
 
