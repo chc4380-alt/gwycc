@@ -298,23 +298,32 @@ async function doReturn() {
   try {
     let res;
     if (facility === 'PC') {
-      res = await fetch(SERVER + '/api/pc/end', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pcKey: booth })
-      });
+      // PC 반납 시 자동 종료 명령 전송
+      await Promise.all([
+        fetch(SERVER + '/api/pc/end', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pcKey: booth })
+        }),
+        fetch(SERVER + '/api/pc/shutdown', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pcKey: booth })
+        })
+      ]);
+      res = { ok: true };
     } else {
-      res = await fetch(SERVER + '/api/end', {
+      const r = await fetch(SERVER + '/api/end', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ facility, booth })
       });
+      res = await r.json();
     }
-    const d = await res.json();
-    if (d.ok) {
+    if (res.ok) {
       showSuccess(facility, booth);
     } else {
-      toast('반납 오류: ' + (d.error || '알 수 없는 오류'));
+      toast('반납 오류: ' + (res.error || '알 수 없는 오류'));
     }
   } catch (e) {
     toast('서버 연결 오류');
