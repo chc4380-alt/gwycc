@@ -64,7 +64,7 @@ async function getState() {
     id: r.id, date: r.date, time: r.time,
     name: r.name, phone: r.phone, facility: r.facility,
     booth: r.booth, game: r.game || '-', active: r.active, endTime: r.end_time,
-    grade: r.grade || '-', gender: r.gender || '-',
+    grade: r.grade || '-', gender: r.gender || '-', headcount: r.headcount || 1,
   }));
 
   const pcStatus = {};
@@ -118,7 +118,10 @@ async function endPC(pcKey, auto = false) {
   const state = await getState();
   broadcast('update', state);
   broadcast('notify', { type: 'pc_end', message: `${pcKey} 이용 종료${auto ? ' (1시간 만료)' : ''} — ${prevUser} 🔴 자동 끄기 명령 전송`, pcKey, auto });
-  if (state.pcQueue.length > 0) broadcast('notify', { type: 'queue_ready', message: `⏳ PC 다음 대기자: ${state.pcQueue[0].name}`, next: state.pcQueue[0] });
+  // 대기자 있으면 자동 배정 알림
+  if (state.pcQueue.length > 0) {
+    broadcast('notify', { type: 'queue_ready', message: `⏳ ${pcKey} 빈자리! 대기자 ${state.pcQueue[0].name}님 배정 가능`, next: state.pcQueue[0], pcKey });
+  }
 }
 
 // ===================== API: 상태 =====================
@@ -128,16 +131,17 @@ app.get('/api/state', async (req, res) => {
 
 // ===================== API: 일반 시설 등록 =====================
 app.post('/api/register', async (req, res) => {
-  const { name, phone, facility, booth, game, grade, gender } = req.body;
+  const { name, phone, facility, booth, game, grade, gender, headcount } = req.body;
   if (!name || !phone || !facility) return res.status(400).json({ error: '필수 항목 누락' });
   const { data, error } = await supabase.from('records').insert({
     date: todayStr(), time: nowStr(), name, phone, facility, booth: booth || '-',
     game: game || '-', active: true, grade: grade || '-', gender: gender || '-',
+    headcount: headcount || 1,
   }).select().single();
   if (error) return res.status(500).json({ error: error.message });
   const state = await getState();
   broadcast('update', state);
-  broadcast('notify', { type: 'register', message: `${facility} 등록 — ${name} ${gender||''} ${grade||''} (${booth || '자유이용'})` });
+  broadcast('notify', { type: 'register', message: `${facility} 등록 — ${name} ${gender||''} ${grade||''} ${headcount>1?headcount+'명':''} (${booth || '자유이용'})` });
   res.json({ ok: true, record: data });
 });
 
@@ -156,9 +160,11 @@ app.post('/api/pc/start', async (req, res) => {
   if (pcTimers[pcKey]) clearTimeout(pcTimers[pcKey]);
   pcTimers[pcKey] = setTimeout(() => endPC(pcKey, true), 60 * 60 * 1000);
 
-  // 자동 WOL — 키오스크 에이전트가 켜기 명령 수신
+  // 자동 WOL — 3번 재시도로 안정화
   pcCommands[pcKey] = 'wakeup';
-  console.log(`[자동 WOL] ${pcKey} 켜기 명령 자동 전송`);
+  setTimeout(() => { if(pcCommands[pcKey] !== 'wakeup') pcCommands[pcKey] = 'wakeup'; }, 3000);
+  setTimeout(() => { if(pcCommands[pcKey] !== 'wakeup') pcCommands[pcKey] = 'wakeup'; }, 7000);
+  console.log(`[자동 WOL] ${pcKey} 켜기 명령 전송 (3회 재시도)`);
 
   const state = await getState();
   broadcast('update', state);
@@ -185,23 +191,37 @@ app.post('/api/pc/queue', async (req, res) => {
   res.json({ ok: true, position: state.pcQueue.length });
 });
 
-// ===================== API: PC 대기 배정 =====================
+// ===================== API: PC 대기 취소 =====================
+app.post('/api/pc/queue-cancel', async (req, res) => {
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: 'id 필요' });
+  await supabase.from('pc_queue').delete().eq('id', id);
+  const state = await getState();
+  broadcast('update', state);
+  res.json({ ok: true });
+});
+
+// ===================== API: PC 대기 → 빈자리 자동배정 =====================
 app.post('/api/pc/queue-assign', async (req, res) => {
   const { pcKey } = req.body;
   const { data: queue } = await supabase.from('pc_queue').select('*').order('id').limit(1);
   if (!queue?.length) return res.status(400).json({ error: '대기자 없음' });
-  const next = queue[0]; const t = nowStr(); const endMs = Date.now() + 60 * 60 * 1000;
+  const next = queue[0];
+  const t = nowStr(); const endMs = Date.now() + 60 * 60 * 1000;
   const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: KR_TZ, hour12: false });
   await Promise.all([
     supabase.from('pc_queue').delete().eq('id', next.id),
     supabase.from('pc_status').update({ free: false, user_name: next.name, phone: next.phone, start_time: t, end_time: endTimeStr, end_ms: endMs }).eq('pc_key', pcKey),
-    supabase.from('records').insert({ date: todayStr(), time: t, name: next.name, phone: next.phone, facility: 'PC', booth: pcKey, game: '-', active: true }),
+    supabase.from('records').insert({ date: todayStr(), time: t, name: next.name, phone: next.phone, facility: 'PC', booth: pcKey, game: '-', active: true, grade: next.grade||'-', gender: next.gender||'-' }),
   ]);
   if (pcTimers[pcKey]) clearTimeout(pcTimers[pcKey]);
   pcTimers[pcKey] = setTimeout(() => endPC(pcKey, true), 60 * 60 * 1000);
+  // 자동 WOL
+  pcCommands[pcKey] = 'wakeup';
+  setTimeout(() => { pcCommands[pcKey] = 'wakeup'; }, 3000);
   const state = await getState();
   broadcast('update', state);
-  broadcast('notify', { type: 'queue_assign', message: `대기자 ${next.name} → ${pcKey} 배정 완료` });
+  broadcast('notify', { type: 'queue_assign', message: `대기자 ${next.name} → ${pcKey} 자동 배정 완료 💡 켜기 명령 전송` });
   res.json({ ok: true });
 });
 
