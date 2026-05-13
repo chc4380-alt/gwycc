@@ -502,27 +502,24 @@ function renderPowerBoard(powerData){
   board.innerHTML='';
   for(let i=1;i<=6;i++){
     const k='PC'+i;
-    const pw=powerData?powerData[k]:{on:false};
-    const usage=state.pcStatus?state.pcStatus[k]:null;
-    const isOn=pw&&pw.on;
-    const isUsing=usage&&!usage.free;
+    const pw=(powerData&&powerData[k])||{on:false};
+    const usage=(state.pcStatus&&state.pcStatus[k])||{free:true};
+    const isOn=pw.on===true;
+    const isUsing=!usage.free;
 
     const card=document.createElement('div');
     card.className='power-card '+(isOn?'on':'off');
 
-    let btnHtml='';
-    if(isOn){
-      btnHtml=`<button class="pw-btn-off" onclick="shutdownPC('${k}')">🔴 끄기</button>`;
-    }else{
-      btnHtml=`<button class="pw-btn-on" onclick="wakeupPC('${k}')">💡 켜기</button>`;
-    }
+    const btnHtml=isOn
+      ?`<button class="pw-btn-off" onclick="shutdownPC('${k}')">🔴 끄기</button>`
+      :`<button class="pw-btn-on" onclick="wakeupPC('${k}')">💡 켜기</button>`;
 
     card.innerHTML=`
       <div class="pw-indicator"></div>
-      <div class="pw-num">${i}</div>
+      <div class="pw-num">${i}번</div>
       <div class="pw-label">${isOn?'🟢 켜짐':'⚫ 꺼짐'}</div>
       <div class="pw-user">${isUsing?(usage.user||'이용중'):'대기중'}</div>
-      <div class="pw-remain" id="pw-remain-${k}">${isUsing&&usage.endTime?'~'+usage.endTime:''}</div>
+      <div class="pw-remain" id="pw-remain-${k}">${isUsing&&usage.endTime?'종료 ~'+usage.endTime:''}</div>
       <div class="pw-btns">${btnHtml}</div>
     `;
     board.appendChild(card);
@@ -563,6 +560,8 @@ function renderAll(){
   renderInspection();
   renderNotices();
   renderRecTable();
+  // 전원 상황판 — state에 pcPowerStatus 있으면 바로 렌더
+  if(state.pcPowerStatus) renderPowerBoard(state.pcPowerStatus);
 }
 
 // ===================== SUMMARY =====================
@@ -586,10 +585,8 @@ function renderPCAdmin(){
     const d=document.createElement('div');
     d.className='pc-card '+(s.free?'free':'busy');
     let btns=s.free
-      ?`<button class="btn-sm bs-g" onclick="quickStartPC('${k}')">이용시작</button>
-        <button class="btn-sm" style="background:#f59e0b;color:white;" onclick="wakeupPC('${k}')">💡 켜기</button>`
-      :`<button class="btn-sm bs-r" onclick="quickEndPC('${k}')">종료</button>
-        <button class="btn-sm" style="background:#374151;color:white;" onclick="shutdownPC('${k}')">🔴 끄기</button>
+      ?`<button class="btn-sm bs-g" onclick="quickStartPC('${k}')">이용시작</button>`
+      :`<button class="btn-sm bs-r" onclick="quickEndPC('${k}')">이용종료</button>
         ${(state.pcQueue||[]).length>0?`<button class="btn-sm bs-a" onclick="assignQueue('${k}')">대기배정</button>`:''}`;
     let bar=!s.free&&s.endMs?`<div class="pc-progress"><div class="pc-prog-bar" id="bar-${k}" style="width:100%"></div></div><div class="pc-end-t" id="remain-${k}">~${s.endTime}</div>`:'';
     d.innerHTML=`<div class="pc-num">${i}</div><div class="pc-status">${s.free?'✓ 빈자리':'● 이용중'}</div><div class="pc-user">${s.user||''}</div>${bar}<div class="pc-btns">${btns}</div>`;
