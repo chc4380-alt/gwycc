@@ -859,8 +859,20 @@ function getFiltered(){
 }
 function fmtTime(t){
   if(!t) return '';
-  // "오전 09:30:22" → "09:30" / "09:30:22" → "09:30"
-  return t.replace(/^(오전|오후)\s*/,'').replace(/:\d{2}$/,'');
+  // "오전 09:30:22" → "09:30" / "오후 03:30:22" → "15:30" / "13:30:22" → "13:30"
+  t = t.trim();
+  if(t.startsWith('오전')){
+    const hm=t.replace('오전','').trim().replace(/:\d{2}$/,'');
+    const [h,m]=hm.split(':');
+    const hour=parseInt(h)===12?0:parseInt(h);
+    return String(hour).padStart(2,'0')+':'+m;
+  } else if(t.startsWith('오후')){
+    const hm=t.replace('오후','').trim().replace(/:\d{2}$/,'');
+    const [h,m]=hm.split(':');
+    const hour=parseInt(h)===12?12:parseInt(h)+12;
+    return String(hour).padStart(2,'0')+':'+m;
+  }
+  return t.replace(/:\d{2}$/,'');
 }
 function renderRecTable(){
   const data=getFiltered();
