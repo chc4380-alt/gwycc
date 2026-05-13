@@ -333,9 +333,22 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
 
       <!-- 시설 점검 -->
       <div class="page" id="page-inspection">
+        <!-- PC 개별 점검 -->
         <div class="sec-card">
-          <div class="sec-title">🔧 시설 점검 모드</div>
-          <p style="font-size:12px;color:var(--txt2);margin-bottom:14px;">점검 모드를 켜면 키오스크에서 해당 시설이 점검 중으로 표시되고 이용 등록이 불가해요.</p>
+          <div class="sec-title">💻 PC 개별 점검</div>
+          <p style="font-size:12px;color:var(--txt2);margin-bottom:12px;">PC별로 개별 점검 모드를 설정할 수 있어요.</p>
+          <div class="insp-grid" id="insp-pc-grid"></div>
+        </div>
+        <!-- 코인노래방 개별 점검 -->
+        <div class="sec-card">
+          <div class="sec-title">🎤 코인노래방 개별 점검</div>
+          <p style="font-size:12px;color:var(--txt2);margin-bottom:12px;">부스별로 개별 점검 모드를 설정할 수 있어요.</p>
+          <div class="insp-grid" id="insp-karaoke-grid"></div>
+        </div>
+        <!-- 기타 시설 점검 -->
+        <div class="sec-card">
+          <div class="sec-title">🎮 기타 시설 점검</div>
+          <p style="font-size:12px;color:var(--txt2);margin-bottom:12px;">점검 모드를 켜면 키오스크에서 점검 중으로 표시되고 이용 등록이 불가해요.</p>
           <div class="insp-grid" id="insp-grid"></div>
         </div>
       </div>
@@ -700,29 +713,60 @@ function renderOthers(){
 
 // ===================== INSPECTION =====================
 const FAC_LIST=[
-  {id:'karaoke',name:'코인노래방',emoji:'🎤'},
   {id:'nintendo',name:'닌텐도',emoji:'🕹️'},
   {id:'arcade',name:'오락기',emoji:'👾'},
   {id:'pool',name:'포켓볼',emoji:'🎱'},
-  {id:'pc',name:'PC',emoji:'💻'},
   {id:'board',name:'보드게임',emoji:'🎲'},
 ];
-function renderInspection(){
-  const g=document.getElementById('insp-grid');g.innerHTML='';
-  FAC_LIST.forEach(f=>{
-    const fs=state.facilityStatus[f.id]||{};
-    const isOn=fs.inspection||false;
-    const card=document.createElement('div');
-    card.className='insp-card'+(isOn?' on':'');
-    card.innerHTML=`
-      <div>
-        <div class="insp-name">${f.emoji} ${f.name}</div>
-        <span class="insp-badge ${isOn?'on':'off'}">${isOn?'🔧 점검중':'✅ 정상'}</span>
-      </div>
-      <button class="btn-sm ${isOn?'bs-g':'bs-a'}" onclick="toggleInspection('${f.id}','${f.name}',${!isOn})">${isOn?'점검 해제':'점검 시작'}</button>`;
-    g.appendChild(card);
-  });
+
+function makeInspCard(id, name, emoji, isOn){
+  const card=document.createElement('div');
+  card.className='insp-card'+(isOn?' on':'');
+  card.innerHTML=`
+    <div>
+      <div class="insp-name">${emoji} ${name}</div>
+      <span class="insp-badge ${isOn?'on':'off'}">${isOn?'🔧 점검중':'✅ 정상'}</span>
+    </div>
+    <button class="btn-sm ${isOn?'bs-g':'bs-a'}" onclick="toggleInspection('${id}','${name}',${!isOn})">${isOn?'점검 해제':'점검 시작'}</button>`;
+  return card;
 }
+
+function renderInspection(){
+  // PC 개별 점검 (PC1~PC6)
+  const pcGrid=document.getElementById('insp-pc-grid');
+  if(pcGrid){
+    pcGrid.innerHTML='';
+    for(let i=1;i<=6;i++){
+      const id=`pc${i}`;
+      const fs=state.facilityStatus[id]||{};
+      const isOn=fs.inspection||false;
+      pcGrid.appendChild(makeInspCard(id,`PC ${i}번`,'💻',isOn));
+    }
+  }
+
+  // 코인노래방 개별 점검 (1번부스, 2번부스)
+  const krGrid=document.getElementById('insp-karaoke-grid');
+  if(krGrid){
+    krGrid.innerHTML='';
+    [{id:'karaoke1',name:'코인노래방 1번 부스'},{id:'karaoke2',name:'코인노래방 2번 부스'}].forEach(b=>{
+      const fs=state.facilityStatus[b.id]||{};
+      const isOn=fs.inspection||false;
+      krGrid.appendChild(makeInspCard(b.id,b.name,'🎤',isOn));
+    });
+  }
+
+  // 기타 시설
+  const g=document.getElementById('insp-grid');
+  if(g){
+    g.innerHTML='';
+    FAC_LIST.forEach(f=>{
+      const fs=state.facilityStatus[f.id]||{};
+      const isOn=fs.inspection||false;
+      g.appendChild(makeInspCard(f.id,f.name,f.emoji,isOn));
+    });
+  }
+}
+
 async function toggleInspection(id,name,on){
   const msg=on?prompt(`${name} 점검 메시지:`,`${name} 점검 중입니다`)||`${name} 점검 중입니다`:'정상';
   await api('/api/facility/inspection',{id,inspection:on,msg});
