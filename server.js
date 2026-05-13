@@ -79,7 +79,7 @@ async function getState() {
   const facilityStatus = {};
   (fsRes.data || []).forEach(f => { facilityStatus[f.id] = { inspection: f.inspection, msg: f.inspection_msg }; });
 
-  return { records, pcStatus, pcQueue, karaokeQueue, notices, facilityStatus };
+  return { records, pcStatus, pcQueue, karaokeQueue, notices, facilityStatus, pcPowerStatus };
 }
 
 function nowStr() { return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
@@ -226,6 +226,40 @@ app.post('/api/end', async (req, res) => {
   const state = await getState();
   broadcast('update', state);
   res.json({ ok: true });
+});
+
+// ===================== PC 전원 상태 (에이전트가 heartbeat 전송) =====================
+let pcPowerStatus = {
+  PC1:{on:false,lastSeen:null},PC2:{on:false,lastSeen:null},
+  PC3:{on:false,lastSeen:null},PC4:{on:false,lastSeen:null},
+  PC5:{on:false,lastSeen:null},PC6:{on:false,lastSeen:null},
+};
+
+// 각 PC 에이전트가 5초마다 heartbeat 전송
+app.post('/api/pc/heartbeat', (req, res) => {
+  const { pcKey } = req.body;
+  if (!pcKey || !pcPowerStatus[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
+  pcPowerStatus[pcKey] = { on: true, lastSeen: Date.now() };
+  res.json({ ok: true });
+});
+
+// 10초 이상 heartbeat 없으면 꺼진 것으로 판단
+setInterval(() => {
+  let changed = false;
+  Object.keys(pcPowerStatus).forEach(k => {
+    const s = pcPowerStatus[k];
+    if (s.on && s.lastSeen && Date.now() - s.lastSeen > 10000) {
+      pcPowerStatus[k].on = false;
+      changed = true;
+      console.log(`[전원감지] ${k} 꺼짐 감지`);
+    }
+  });
+  if (changed) broadcast('power', pcPowerStatus);
+}, 5000);
+
+// 전원 상태 조회
+app.get('/api/pc/power', (req, res) => {
+  res.json(pcPowerStatus);
 });
 
 // ===================== PC 원격제어 설정 =====================
