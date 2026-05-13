@@ -82,8 +82,13 @@ async function getState() {
   return { records, pcStatus, pcQueue, karaokeQueue, notices, facilityStatus, pcPowerStatus };
 }
 
-function nowStr() { return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
-function todayStr() { return new Date().toLocaleDateString('ko-KR'); }
+const KR_TZ = 'Asia/Seoul';
+function nowStr() {
+  return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: KR_TZ });
+}
+function todayStr() {
+  return new Date().toLocaleDateString('ko-KR', { timeZone: KR_TZ });
+}
 
 // ===================== PC 타이머 =====================
 async function restoreTimers() {
@@ -143,7 +148,7 @@ app.post('/api/pc/start', async (req, res) => {
   const { data: pc } = await supabase.from('pc_status').select('free').eq('pc_key', pcKey).single();
   if (!pc?.free) return res.status(400).json({ error: '이미 사용 중' });
   const t = nowStr(); const endMs = Date.now() + 60 * 60 * 1000;
-  const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: KR_TZ });
   await Promise.all([
     supabase.from('pc_status').update({ free: false, user_name: name, phone, start_time: t, end_time: endTimeStr, end_ms: endMs }).eq('pc_key', pcKey),
     supabase.from('records').insert({ date: todayStr(), time: t, name, phone, facility: 'PC', booth: pcKey, game: '-', active: true, grade: grade || '-', gender: gender || '-' }),
@@ -186,7 +191,7 @@ app.post('/api/pc/queue-assign', async (req, res) => {
   const { data: queue } = await supabase.from('pc_queue').select('*').order('id').limit(1);
   if (!queue?.length) return res.status(400).json({ error: '대기자 없음' });
   const next = queue[0]; const t = nowStr(); const endMs = Date.now() + 60 * 60 * 1000;
-  const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: KR_TZ });
   await Promise.all([
     supabase.from('pc_queue').delete().eq('id', next.id),
     supabase.from('pc_status').update({ free: false, user_name: next.name, phone: next.phone, start_time: t, end_time: endTimeStr, end_ms: endMs }).eq('pc_key', pcKey),
