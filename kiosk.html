@@ -67,9 +67,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f0f4f0;color:var(--txt);m
 .act-btn .as{font-size:10px;color:var(--txt2);}
 
 /* MODAL */
-.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;}
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 .ov.open{display:flex;}
-.mbox{background:var(--bg);border-radius:18px;width:100%;max-width:460px;margin:auto;overflow:hidden;box-shadow:var(--shl);animation:mIn .22s cubic-bezier(.34,1.56,.64,1);}
+.mbox{background:var(--bg);border-radius:18px;width:100%;max-width:460px;margin:auto;overflow:hidden;box-shadow:var(--shl);animation:mIn .22s cubic-bezier(.34,1.56,.64,1);-webkit-transform:translateZ(0);}
 .mbox.wide{max-width:580px;}
 @keyframes mIn{from{transform:translateY(30px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 .mhd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;color:#fff;}
@@ -634,9 +634,23 @@ function renderFacGrid(){
 }
 function countFree(f){
   if(f.type==='free')return 99;
-  if(f.type==='pc')return Object.values(state.pcStatus).filter(s=>s.free).length;
+  if(f.type==='pc'){
+    // PC 개별 점검 고려
+    return Object.values(state.pcStatus).filter((s,idx)=>{
+      const k='PC'+(idx+1);
+      const insp=(state.facilityStatus['pc'+(idx+1)]||{}).inspection;
+      return s.free&&!insp;
+    }).length;
+  }
   if(!f.booths)return 99;
   const used=state.records.filter(r=>r.facility===f.name&&r.active).map(r=>r.booth);
+  if(f.type==='karaoke'){
+    // 코인노래방 개별 점검 고려
+    return f.booths.filter((b,idx)=>{
+      const insp=(state.facilityStatus['karaoke'+(idx+1)]||{}).inspection;
+      return !used.includes(b)&&!insp;
+    }).length;
+  }
   return f.booths.filter(b=>!used.includes(b)).length;
 }
 
@@ -712,14 +726,18 @@ function renderPCBoothChips(){
   let any=false;
   for(let i=1;i<=6;i++){
     const k='PC'+i;
-    if(state.pcStatus[k]&&state.pcStatus[k].free){
+    const insp=(state.facilityStatus['pc'+i]||{}).inspection;
+    if(state.pcStatus[k]&&state.pcStatus[k].free&&!insp){
       any=true;
       const c=document.createElement('div');c.className='bchip';c.textContent=k;
       c.onclick=()=>{g.querySelectorAll('.bchip').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');selBooth=k;};
       g.appendChild(c);
+    } else if(insp){
+      const c=document.createElement('div');c.className='bchip occ';c.textContent=k+' (점검중)';
+      g.appendChild(c);
     }
   }
-  if(!any)g.innerHTML='<span style="font-size:12px;color:var(--red);">현재 빈 자리 없음</span>';
+  if(!any&&g.children.length===0)g.innerHTML='<span style="font-size:12px;color:var(--red);">현재 빈 자리 없음</span>';
 }
 function renderPCQueue(){
   const d=document.getElementById('pc-queue-disp'),q=state.pcQueue||[];
@@ -774,15 +792,21 @@ function renderKaraokeModal(){
   // 부스 선택 chips
   const g=document.getElementById('kr-booth-chips');g.innerHTML='';
   let any=false;
-  ['1번 부스','2번 부스'].forEach(b=>{
-    if(!used.includes(b)){
+  ['1번 부스','2번 부스'].forEach((b,idx)=>{
+    const insp=(state.facilityStatus['karaoke'+(idx+1)]||{}).inspection;
+    if(used.includes(b)){
+      // 이용중
+    } else if(insp){
+      const c=document.createElement('div');c.className='bchip occ';c.textContent=b+' (점검중)';
+      g.appendChild(c);
+    } else {
       any=true;
       const c=document.createElement('div');c.className='bchip';c.textContent=b;
       c.onclick=()=>{g.querySelectorAll('.bchip').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');krSelBooth=b;};
       g.appendChild(c);
     }
   });
-  if(!any)g.innerHTML='<span style="font-size:12px;color:var(--red);">현재 빈 자리 없음</span>';
+  if(!any&&g.children.length===0)g.innerHTML='<span style="font-size:12px;color:var(--red);">현재 빈 자리 없음</span>';
 }
 async function submitKaraokeUse(){
   const name=document.getElementById('kr-name').value.trim(),phone=document.getElementById('kr-phone').value.trim();
@@ -982,8 +1006,22 @@ async function api(path,body){
   const r=await fetch(SERVER+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   return r.json();
 }
-function openModal(id){document.getElementById(id).classList.add('open');}
-function closeModal(id){document.getElementById(id).classList.remove('open');}
+function openModal(id){
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow='hidden';
+  document.body.style.position='fixed';
+  document.body.style.width='100%';
+}
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  // 다른 열린 모달 없을 때만 스크롤 복구
+  const anyOpen=document.querySelectorAll('.ov.open').length>0;
+  if(!anyOpen){
+    document.body.style.overflow='';
+    document.body.style.position='';
+    document.body.style.width='';
+  }
+}
 function phoneMask(id){
   document.getElementById(id).addEventListener('input',function(){
     let v=this.value.replace(/\D/g,'');
