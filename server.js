@@ -106,9 +106,13 @@ async function endPC(pcKey, auto = false) {
     supabase.from('pc_status').update({ free: true, user_name: null, phone: null, start_time: null, end_time: null, end_ms: null }).eq('pc_key', pcKey),
     supabase.from('records').update({ active: false, end_time: nowStr() }).eq('facility', 'PC').eq('booth', pcKey).eq('active', true),
   ]);
+  // 자동 종료 — 키오스크 에이전트가 끄기 명령 수신
+  pcCommands[pcKey] = 'shutdown';
+  console.log(`[자동 종료] ${pcKey} 끄기 명령 자동 전송`);
+
   const state = await getState();
   broadcast('update', state);
-  broadcast('notify', { type: 'pc_end', message: `${pcKey} 이용 종료${auto ? ' (1시간 만료)' : ''} — ${prevUser}`, pcKey, auto });
+  broadcast('notify', { type: 'pc_end', message: `${pcKey} 이용 종료${auto ? ' (1시간 만료)' : ''} — ${prevUser} 🔴 자동 끄기 명령 전송`, pcKey, auto });
   if (state.pcQueue.length > 0) broadcast('notify', { type: 'queue_ready', message: `⏳ PC 다음 대기자: ${state.pcQueue[0].name}`, next: state.pcQueue[0] });
 }
 
@@ -146,9 +150,14 @@ app.post('/api/pc/start', async (req, res) => {
   ]);
   if (pcTimers[pcKey]) clearTimeout(pcTimers[pcKey]);
   pcTimers[pcKey] = setTimeout(() => endPC(pcKey, true), 60 * 60 * 1000);
+
+  // 자동 WOL — 키오스크 에이전트가 켜기 명령 수신
+  pcCommands[pcKey] = 'wakeup';
+  console.log(`[자동 WOL] ${pcKey} 켜기 명령 자동 전송`);
+
   const state = await getState();
   broadcast('update', state);
-  broadcast('notify', { type: 'pc_start', message: `${pcKey} 이용 시작 — ${name} ${gender||''} ${grade||''} (종료: ${endTimeStr})`, pcKey });
+  broadcast('notify', { type: 'pc_start', message: `${pcKey} 이용 시작 — ${name} ${gender||''} ${grade||''} (종료: ${endTimeStr}) 💡 자동 켜기 명령 전송`, pcKey });
   res.json({ ok: true, endTime: endTimeStr });
 });
 
@@ -231,6 +240,17 @@ const PC_CONFIG = {
 
 // 원격제어 명령 대기열 (키오스크 에이전트가 폴링)
 let pcCommands = {}; // { PC1: 'wakeup'|'shutdown'|null, ... }
+
+// API: 각 PC 에이전트가 자기 명령만 확인
+app.get('/api/pc/command/:pcKey', (req, res) => {
+  const { pcKey } = req.params;
+  const command = pcCommands[pcKey] || null;
+  if (command) {
+    pcCommands[pcKey] = null; // 명령 확인 후 초기화
+    console.log(`[명령 전달] ${pcKey}: ${command}`);
+  }
+  res.json({ pcKey, command });
+});
 
 // API: 에이전트가 명령 확인 (키오스크 PC에서 5초마다 폴링)
 app.get('/api/pc/commands', (req, res) => {
