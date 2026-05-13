@@ -399,7 +399,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
           </div>
           <div class="twrap">
             <table class="rtbl">
-              <thead><tr><th>순번</th><th>날짜·시간</th><th>이름</th><th>성별</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th><th>상태</th><th>삭제</th></tr></thead>
+              <thead><tr><th>순번</th><th>날짜·시간</th><th>이름</th><th>성별</th><th>인원</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th><th>상태</th><th>삭제</th></tr></thead>
               <tbody id="rec-tbody"></tbody>
             </table>
           </div>
@@ -852,7 +852,7 @@ function renderRecTable(){
   data.forEach((r,idx)=>{
     const tr=document.createElement('tr');
     const gd=r.gender==='남'?'👦 남':r.gender==='여'?'👧 여':r.gender||'-';
-    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:#2d9d5c;font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;text-align:center">${gd}</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:#7c3aed">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><span class="chip ${r.active?'cg':'cr'}">${r.active?'이용중':'종료'}</span></td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
+    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:#2d9d5c;font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;text-align:center">${gd}</td><td style="font-size:11px;text-align:center;font-weight:700;color:var(--g1)">${r.headcount||1}명</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:#7c3aed">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><span class="chip ${r.active?'cg':'cr'}">${r.active?'이용중':'종료'}</span></td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
     tb.appendChild(tr);
   });
 }
