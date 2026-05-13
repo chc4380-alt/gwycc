@@ -115,6 +115,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f0f4f0;color:var(--txt);m
 .gender-chip.male.sel{border-color:#1d6fb5;background:#1d6fb5;color:white;}
 .gender-chip.female.sel{border-color:#db2777;background:#db2777;color:white;}
 
+/* HEADCOUNT */
+.hc-row{display:flex;align-items:center;gap:10px;}
+.hc-btn{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--bd);background:var(--bg);font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .14s;}
+.hc-btn:hover{border-color:var(--g1);background:var(--g4);}
+.hc-num{font-size:22px;font-weight:900;color:var(--g1);min-width:30px;text-align:center;}
+
 /* BUTTONS */
 .btn{width:100%;padding:12px;border:none;border-radius:var(--rs);font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s;margin-top:6px;display:block;}
 .btn-g{background:var(--g1);color:white;}.btn-g:hover{background:#145a30;}
@@ -254,6 +260,16 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
         <div class="gender-row" id="reg-gender-row">
           <div class="gender-chip male" onclick="selectGender('reg','남')">👦 남자</div>
           <div class="gender-chip female" onclick="selectGender('reg','여')">👧 여자</div>
+        </div>
+      </div>
+      <!-- 인원수 -->
+      <div class="fg" id="grp-headcount">
+        <label class="fl">이용 인원 <span class="req">*</span></label>
+        <div class="hc-row">
+          <button class="hc-btn" onclick="changeHC(-1)">－</button>
+          <div class="hc-num" id="hc-num">1</div>
+          <button class="hc-btn" onclick="changeHC(1)">＋</button>
+          <span style="font-size:12px;color:var(--txt2);">명</span>
         </div>
       </div>
       <!-- 학년 선택 -->
@@ -397,7 +413,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       </div>
       <div class="twrap">
         <table class="rtbl">
-          <thead><tr><th>순번</th><th>날짜·시간</th><th>이름</th><th>성별</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th><th>삭제</th></tr></thead>
+          <thead><tr><th>순번</th><th>날짜·시간</th><th>이름</th><th>성별</th><th>인원</th><th>연락처</th><th>학년</th><th>시설</th><th>부스</th><th>게임명</th><th>삭제</th></tr></thead>
           <tbody id="rec-tbody"></tbody>
         </table>
       </div>
@@ -487,6 +503,14 @@ let pcGrade={school:'',num:''};
 let krGrade={school:'',num:''};
 // 성별 상태
 let regGender='',pcGender='',krGender='';
+// 인원수
+let regHeadcount=1;
+
+// ===================== 인원수 함수 =====================
+function changeHC(delta){
+  regHeadcount=Math.max(1,Math.min(20,regHeadcount+delta));
+  document.getElementById('hc-num').textContent=regHeadcount;
+}
 
 // ===================== 성별 선택 함수 =====================
 function selectGender(prefix,val){
@@ -668,7 +692,11 @@ function openFac(f){
   document.getElementById('reg-board-game').value='';
   resetGrade('reg',regGrade);
   regGender='';
+  regHeadcount=1;
+  document.getElementById('hc-num').textContent='1';
   document.getElementById('reg-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));
+  // PC는 인원수 숨김 (1명 고정)
+  document.getElementById('grp-headcount').style.display=f.type==='pc'?'none':'block';
   document.getElementById('grp-game').style.display=f.needGame?'block':'none';
   document.getElementById('grp-board-game').style.display=f.id==='board'?'block':'none';
   const gb=document.getElementById('grp-booth'),bg=document.getElementById('reg-booths');
@@ -703,8 +731,8 @@ async function submitReg(){
   const grade=regGrade.school+' '+regGrade.num;
   const gameVal=curFac.needGame?game:(curFac.id==='board'?boardGame:'-');
   try{
-    const r=await api('/api/register',{name,phone,facility:curFac.name,booth:selBooth||'-',game:gameVal,grade,gender:regGender});
-    if(r.ok){closeModal('ov-reg');toast('✅ '+curFac.name+' 이용 등록 완료!');}
+    const r=await api('/api/register',{name,phone,facility:curFac.name,booth:selBooth||'-',game:gameVal,grade,gender:regGender,headcount:regHeadcount});
+    if(r.ok){closeModal('ov-reg');toast('✅ '+curFac.name+' 이용 등록 완료! ('+regHeadcount+'명)');}
   }catch(e){toast('서버 연결 오류');}
 }
 
@@ -743,7 +771,16 @@ function renderPCQueue(){
   const d=document.getElementById('pc-queue-disp'),q=state.pcQueue||[];
   if(!q.length){d.innerHTML='<div style="font-size:11px;color:var(--txt2);padding:4px 0;">대기 없음</div>';return;}
   d.innerHTML='';
-  q.forEach((x,i)=>{const el=document.createElement('div');el.className='qi';el.innerHTML=`<div class="qr">${i+1}</div><div><div class="qn">${x.name}</div><div class="qm">${x.phone}${x.grade?' · '+x.grade:''} · ${x.time}</div></div>`;d.appendChild(el);});
+  q.forEach((x,i)=>{
+    const el=document.createElement('div');el.className='qi';
+    el.innerHTML=`<div class="qr">${i+1}</div><div style="flex:1"><div class="qn">${x.name}</div><div class="qm">${x.phone}${x.grade?' · '+x.grade:''} · ${x.time}</div></div><button onclick="cancelPCQueue(${x.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">취소</button>`;
+    d.appendChild(el);
+  });
+}
+async function cancelPCQueue(id){
+  if(!confirm('대기를 취소하시겠습니까?'))return;
+  await api('/api/pc/queue-cancel',{id});
+  toast('대기 취소 완료');
 }
 async function submitPCUse(){
   const name=document.getElementById('pc-name').value.trim(),phone=document.getElementById('pc-phone').value.trim();
@@ -787,7 +824,11 @@ function renderKaraokeModal(){
   if(!q.length){d.innerHTML='<div style="font-size:11px;color:var(--txt2);padding:4px 0 10px;">대기 없음</div>';}
   else{
     d.innerHTML='';
-    q.forEach((x,i)=>{const el=document.createElement('div');el.className='qi';el.innerHTML=`<div class="qr">${i+1}</div><div><div class="qn">${x.name}</div><div class="qm">${x.phone} · ${x.time}</div></div>`;d.appendChild(el);});
+    q.forEach((x,i)=>{
+      const el=document.createElement('div');el.className='qi';
+      el.innerHTML=`<div class="qr">${i+1}</div><div style="flex:1"><div class="qn">${x.name}</div><div class="qm">${x.phone} · ${x.time}</div></div><button onclick="cancelKaraokeQueue(${x.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">취소</button>`;
+      d.appendChild(el);
+    });
   }
   // 부스 선택 chips
   const g=document.getElementById('kr-booth-chips');g.innerHTML='';
@@ -830,6 +871,12 @@ async function submitKaraokeQueue(){
   const grade=krGrade.school+' '+krGrade.num;
   try{const r=await api('/api/karaoke/queue',{name,phone,grade,gender:krGender});if(r.ok){document.getElementById('kr-name').value='';document.getElementById('kr-phone').value='';resetGrade('kr',krGrade);krGender='';document.getElementById('kr-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));toast('⏳ 코인노래방 대기 '+r.position+'번째 등록!');}}
   catch(e){toast('서버 연결 오류');}
+}
+
+async function cancelKaraokeQueue(id){
+  if(!confirm('대기를 취소하시겠습니까?'))return;
+  await api('/api/karaoke/queue-remove',{id});
+  toast('대기 취소 완료');
 }
 
 // ===================== RECORDS =====================
@@ -884,7 +931,7 @@ function renderRecTable(){
     const tr=document.createElement('tr');
     tr.id='rec-row-'+r.id;
     const genderDisplay=r.gender==='남'?'👦 남':r.gender==='여'?'👧 여':r.gender||'-';
-    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:var(--g2);font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;text-align:center">${genderDisplay}</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:var(--pur)">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
+    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:var(--g2);font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;text-align:center">${genderDisplay}</td><td style="font-size:11px;text-align:center;font-weight:700;color:var(--g1)">${r.headcount||1}명</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:var(--pur)">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
     tb.appendChild(tr);
   });
 }
@@ -904,7 +951,7 @@ function printRecords(){
   const dateVal=document.getElementById('date-filter')?.value||'';
   const tabLabel={all:'전체',today:'오늘',active:'이용중',ended:'종료'}[recTab];
   const printTitle=dateVal?`${dateVal} 이용 기록`:`${recFilter} / ${tabLabel}`;
-  const rows=data.map((r,i)=>{const gd=r.gender==='남'?'👦 남':r.gender==='여'?'👧 여':r.gender||'-';return`<tr><td style="text-align:center">${i+1}</td><td>${r.date} ${fmtTime(r.time)}</td><td><b>${r.name}</b></td><td>${gd}</td><td>${r.phone}</td><td>${r.grade||'-'}</td><td>${r.facility}</td><td>${r.booth}</td><td>${r.game!=='-'?r.game:''}</td></tr>`}).join('');
+  const rows=data.map((r,i)=>{const gd=r.gender==='남'?'남':r.gender==='여'?'여':r.gender||'-';return`<tr><td style="text-align:center">${i+1}</td><td>${r.date} ${fmtTime(r.time)}</td><td><b>${r.name}</b></td><td>${gd}</td><td style="text-align:center">${r.headcount||1}명</td><td>${r.phone}</td><td>${r.grade||'-'}</td><td>${r.facility}</td><td>${r.booth}</td><td>${r.game!=='-'?r.game:''}</td></tr>`}).join('');
   const html=`
   <div style="font-family:'Noto Sans KR','Malgun Gothic',sans-serif;padding:16px;">
     <div style="text-align:center;border-bottom:3px double #1a6b3c;padding-bottom:12px;margin-bottom:12px;">
@@ -917,8 +964,9 @@ function printRecords(){
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:5%">순번</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:16%">날짜·시간</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:10%">이름</th>
-        <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:7%">성별</th>
-        <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:13%">연락처</th>
+        <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:6%">성별</th>
+        <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:6%">인원</th>
+        <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:12%">연락처</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:10%">학년</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:11%">시설</th>
         <th style="background:#1a6b3c;color:white;padding:6px 8px;border:1px solid #0f4a28;text-align:center;width:11%">부스/번호</th>
@@ -961,8 +1009,8 @@ function doPrint(){
 
 function downloadCSV(){
   const data=getFiltered();
-  const hdr=['순번','날짜·시간','이름','성별','연락처','학년','시설','부스/번호','게임명'];
-  const rows=data.map((r,i)=>[i+1,`${r.date} ${fmtTime(r.time)}`,r.name,r.gender||'-',r.phone,r.grade||'-',r.facility,r.booth,r.game]);
+  const hdr=['순번','날짜·시간','이름','성별','인원','연락처','학년','시설','부스/번호','게임명'];
+  const rows=data.map((r,i)=>[i+1,`${r.date} ${fmtTime(r.time)}`,r.name,r.gender||'-',`${r.headcount||1}명`,r.phone,r.grade||'-',r.facility,r.booth,r.game]);
   const csv='\uFEFF'+[hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
