@@ -254,22 +254,27 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="fg"><label class="fl">이용 시작 시간</label><input class="fi" id="reg-time" readonly style="background:var(--bg2);cursor:default;"></div>
       <div class="fg"><label class="fl">이름 <span class="req">*</span></label><input class="fi" id="reg-name" placeholder="이름을 입력해 주세요" maxlength="20" autocomplete="off"></div>
       <div class="fg"><label class="fl">연락처 <span class="req">*</span></label><input class="fi" id="reg-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
-      <!-- 성별 선택 -->
-      <div class="fg">
-        <label class="fl">성별 <span class="req">*</span></label>
-        <div class="gender-row" id="reg-gender-row">
-          <div class="gender-chip male" onclick="selectGender('reg','남')">👦 남자</div>
-          <div class="gender-chip female" onclick="selectGender('reg','여')">👧 여자</div>
-        </div>
-      </div>
-      <!-- 인원수 -->
+      <!-- 성별 및 인원수 -->
       <div class="fg" id="grp-headcount">
-        <label class="fl">이용 인원 <span class="req">*</span></label>
-        <div class="hc-row">
-          <button class="hc-btn" onclick="changeHC(-1)">－</button>
-          <div class="hc-num" id="hc-num">1</div>
-          <button class="hc-btn" onclick="changeHC(1)">＋</button>
-          <span style="font-size:12px;color:var(--txt2);">명</span>
+        <label class="fl">성별 · 인원수 <span class="req">*</span></label>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:13px;font-weight:700;color:#1d6fb5;min-width:50px;">👦 남자</span>
+            <button class="hc-btn" onclick="changeGenderCount('male',-1)">－</button>
+            <div class="hc-num" id="hc-male" style="color:#1d6fb5;">0</div>
+            <button class="hc-btn" onclick="changeGenderCount('male',1)">＋</button>
+            <span style="font-size:12px;color:var(--txt2);">명</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:13px;font-weight:700;color:#db2777;min-width:50px;">👧 여자</span>
+            <button class="hc-btn" onclick="changeGenderCount('female',-1)">－</button>
+            <div class="hc-num" id="hc-female" style="color:#db2777;">0</div>
+            <button class="hc-btn" onclick="changeGenderCount('female',1)">＋</button>
+            <span style="font-size:12px;color:var(--txt2);">명</span>
+          </div>
+          <div style="font-size:12px;color:var(--txt2);padding:6px 10px;background:var(--bg2);border-radius:8px;">
+            총 <span id="hc-total" style="font-weight:700;color:var(--g1);">0</span>명
+          </div>
         </div>
       </div>
       <!-- 학년 선택 -->
@@ -501,15 +506,35 @@ let krSelBooth=null;
 let regGrade={school:'',num:''};
 let pcGrade={school:'',num:''};
 let krGrade={school:'',num:''};
-// 성별 상태
+// 성별 상태 (PC/코인노래방용 단일 선택)
 let regGender='',pcGender='',krGender='';
-// 인원수
+// 인원수 (남녀 구분)
+let maleCount=0, femaleCount=0;
 let regHeadcount=1;
 
 // ===================== 인원수 함수 =====================
 function changeHC(delta){
   regHeadcount=Math.max(1,Math.min(20,regHeadcount+delta));
   document.getElementById('hc-num').textContent=regHeadcount;
+}
+
+// 남녀 인원수 변경
+function changeGenderCount(type, delta){
+  if(type==='male'){
+    maleCount=Math.max(0,Math.min(20,maleCount+delta));
+    document.getElementById('hc-male').textContent=maleCount;
+  } else {
+    femaleCount=Math.max(0,Math.min(20,femaleCount+delta));
+    document.getElementById('hc-female').textContent=femaleCount;
+  }
+  const total=maleCount+femaleCount;
+  document.getElementById('hc-total').textContent=total;
+  regHeadcount=total;
+  // 성별 자동 설정
+  if(maleCount>0&&femaleCount===0) regGender='남';
+  else if(femaleCount>0&&maleCount===0) regGender='여';
+  else if(maleCount>0&&femaleCount>0) regGender='혼성';
+  else regGender='';
 }
 
 // ===================== 성별 선택 함수 =====================
@@ -693,8 +718,14 @@ function openFac(f){
   resetGrade('reg',regGrade);
   regGender='';
   regHeadcount=1;
-  document.getElementById('hc-num').textContent='1';
-  document.getElementById('reg-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));
+  maleCount=0; femaleCount=0;
+  const hm=document.getElementById('hc-male');
+  const hf=document.getElementById('hc-female');
+  const ht=document.getElementById('hc-total');
+  if(hm)hm.textContent='0';
+  if(hf)hf.textContent='0';
+  if(ht)ht.textContent='0';
+  document.getElementById('reg-gender-row')?.querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));
   // PC는 인원수 숨김 (1명 고정)
   document.getElementById('grp-headcount').style.display=f.type==='pc'?'none':'block';
   document.getElementById('grp-game').style.display=f.needGame?'block':'none';
@@ -722,7 +753,7 @@ async function submitReg(){
   const boardGame=document.getElementById('reg-board-game').value.trim();
   if(!name){toast('이름을 입력해 주세요');return;}
   if(!phone){toast('연락처를 입력해 주세요');return;}
-  if(!regGender){toast('성별을 선택해 주세요');return;}
+  if(curFac.type!=='pc'&&(maleCount+femaleCount)<1){toast('인원수를 입력해 주세요');return;}
   if(!regGrade.school){toast('학교급을 선택해 주세요');return;}
   if(!regGrade.num){toast('학년을 선택해 주세요');return;}
   if(curFac.needGame&&!game){toast('게임 이름을 입력해 주세요');return;}
@@ -730,9 +761,14 @@ async function submitReg(){
   if(curFac.booths&&!selBooth){toast('부스를 선택해 주세요');return;}
   const grade=regGrade.school+' '+regGrade.num;
   const gameVal=curFac.needGame?game:(curFac.id==='board'?boardGame:'-');
+  // 성별 정보 구성
+  const genderInfo=curFac.type==='pc'?regGender:
+    (maleCount>0&&femaleCount>0)?`혼성(남${maleCount}·여${femaleCount})`:
+    (maleCount>0)?`남(${maleCount}명)`:`여(${femaleCount}명)`;
+  const totalCount=curFac.type==='pc'?1:(maleCount+femaleCount);
   try{
-    const r=await api('/api/register',{name,phone,facility:curFac.name,booth:selBooth||'-',game:gameVal,grade,gender:regGender,headcount:regHeadcount});
-    if(r.ok){closeModal('ov-reg');toast('✅ '+curFac.name+' 이용 등록 완료! ('+regHeadcount+'명)');}
+    const r=await api('/api/register',{name,phone,facility:curFac.name,booth:selBooth||'-',game:gameVal,grade,gender:genderInfo,headcount:totalCount});
+    if(r.ok){closeModal('ov-reg');toast('✅ '+curFac.name+' 이용 등록 완료! ('+totalCount+'명)');}
   }catch(e){toast('서버 연결 오류');}
 }
 
