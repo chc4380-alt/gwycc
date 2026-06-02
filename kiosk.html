@@ -103,6 +103,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f0f4f0;color:var(--txt);m
 .grade-chip.elem.sel{background:#7c3aed;border-color:#7c3aed;}
 .grade-chip.mid.sel{background:#1d6fb5;border-color:#1d6fb5;}
 .grade-chip.high.sel{background:#dc2626;border-color:#dc2626;}
+.grade-chip.infant.sel{background:#f59e0b;border-color:#f59e0b;}
 .grade-num-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
 .grade-num{padding:6px 12px;border:1.5px solid var(--bd);border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;transition:all .14s;color:var(--txt);background:var(--bg);user-select:none;}
 .grade-num:hover{border-color:var(--g1);background:var(--g4);}
@@ -273,6 +274,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="fg">
         <label class="fl">학년 <span class="req">*</span></label>
         <div class="grade-row" id="reg-grade-school">
+          <div class="grade-chip infant" onclick="selectSchool('유아')">🧒 유아</div>
           <div class="grade-chip elem" onclick="selectSchool('초등')">초등</div>
           <div class="grade-chip mid" onclick="selectSchool('중등')">중등</div>
           <div class="grade-chip high" onclick="selectSchool('고등')">고등</div>
@@ -319,6 +321,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="fg">
         <label class="fl">학년 <span class="req">*</span></label>
         <div class="grade-row" id="pc-grade-school">
+          <div class="grade-chip infant" onclick="selectSchoolPC('유아')">🧒 유아</div>
           <div class="grade-chip elem" onclick="selectSchoolPC('초등')">초등</div>
           <div class="grade-chip mid" onclick="selectSchoolPC('중등')">중등</div>
           <div class="grade-chip high" onclick="selectSchoolPC('고등')">고등</div>
@@ -374,6 +377,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="fg">
         <label class="fl">학년 <span class="req">*</span></label>
         <div class="grade-row" id="kr-grade-school">
+          <div class="grade-chip infant" onclick="selectSchoolKR('유아')">🧒 유아</div>
           <div class="grade-chip elem" onclick="selectSchoolKR('초등')">초등</div>
           <div class="grade-chip mid" onclick="selectSchoolKR('중등')">중등</div>
           <div class="grade-chip high" onclick="selectSchoolKR('고등')">고등</div>
@@ -586,20 +590,38 @@ function makeGradeNums(school,numRowId,gradeObj,schoolRowId){
 function selectSchool(school){
   regGrade.school=school;regGrade.num='';
   const sr=document.getElementById('reg-grade-school');
-  sr.querySelectorAll('.grade-chip').forEach(c=>{c.classList.remove('sel');if(c.textContent===school)c.classList.add('sel');});
-  makeGradeNums(school,'reg-grade-num',regGrade,'reg-grade-school');
+  sr.querySelectorAll('.grade-chip').forEach(c=>{c.classList.remove('sel');if(c.textContent.includes(school))c.classList.add('sel');});
+  if(school==='유아'){
+    document.getElementById('reg-grade-num').innerHTML='';
+    document.getElementById('reg-grade-num').style.display='none';
+    regGrade.num='유아';
+  } else {
+    makeGradeNums(school,'reg-grade-num',regGrade,'reg-grade-school');
+  }
 }
 function selectSchoolPC(school){
   pcGrade.school=school;pcGrade.num='';
   const sr=document.getElementById('pc-grade-school');
-  sr.querySelectorAll('.grade-chip').forEach(c=>{c.classList.remove('sel');if(c.textContent===school)c.classList.add('sel');});
-  makeGradeNums(school,'pc-grade-num',pcGrade,'pc-grade-school');
+  sr.querySelectorAll('.grade-chip').forEach(c=>{c.classList.remove('sel');if(c.textContent.includes(school))c.classList.add('sel');});
+  if(school==='유아'){
+    document.getElementById('pc-grade-num').innerHTML='';
+    document.getElementById('pc-grade-num').style.display='none';
+    pcGrade.num='유아';
+  } else {
+    makeGradeNums(school,'pc-grade-num',pcGrade,'pc-grade-school');
+  }
 }
 function selectSchoolKR(school){
   krGrade.school=school;krGrade.num='';
   const sr=document.getElementById('kr-grade-school');
-  sr.querySelectorAll('.grade-chip').forEach(c=>{c.classList.remove('sel');if(c.textContent===school)c.classList.add('sel');});
-  makeGradeNums(school,'kr-grade-num',krGrade,'kr-grade-school');
+  sr.querySelectorAll('.grade-chip').forEach(c=>{c.classList.remove('sel');if(c.textContent.includes(school))c.classList.add('sel');});
+  if(school==='유아'){
+    document.getElementById('kr-grade-num').innerHTML='';
+    document.getElementById('kr-grade-num').style.display='none';
+    krGrade.num='유아';
+  } else {
+    makeGradeNums(school,'kr-grade-num',krGrade,'kr-grade-school');
+  }
 }
 function resetGrade(prefix,gradeObj){
   gradeObj.school='';gradeObj.num='';
@@ -774,8 +796,7 @@ async function submitReg(){
   if(!phone){toast('연락처를 입력해 주세요');return;}
   if(curFac.type!=='pc'&&(maleCount+femaleCount)<1){toast('인원수를 입력해 주세요');return;}
   if(!regGrade.school){toast('학교급을 선택해 주세요');return;}
-  if(!regGrade.num){toast('학년을 선택해 주세요');return;}
-  if(curFac.needGame&&!game){toast('게임 이름을 입력해 주세요');return;}
+  if(!regGrade.num){toast('학년을 선택해 주세요');return;}  if(curFac.needGame&&!game){toast('게임 이름을 입력해 주세요');return;}
   if(curFac.id==='board'&&!boardGame){toast('게임 종류를 입력해 주세요');return;}
   if(curFac.booths&&!selBooth){toast('부스를 선택해 주세요');return;}
   const grade=regGrade.school+' '+regGrade.num;
