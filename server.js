@@ -112,7 +112,7 @@ async function endPC(pcKey, auto = false) {
     supabase.from('records').update({ active: false, end_time: nowStr() }).eq('facility', 'PC').eq('booth', pcKey).eq('active', true),
   ]);
   // 자동 종료 — 키오스크 에이전트가 끄기 명령 수신
-  pcCommands[pcKey] = 'shutdown';
+  setPCCommand(pcKey, 'shutdown');
   console.log(`[자동 종료] ${pcKey} 끄기 명령 자동 전송`);
 
   const state = await getState();
@@ -160,11 +160,9 @@ app.post('/api/pc/start', async (req, res) => {
   if (pcTimers[pcKey]) clearTimeout(pcTimers[pcKey]);
   pcTimers[pcKey] = setTimeout(() => endPC(pcKey, true), 60 * 60 * 1000);
 
-  // 자동 WOL — 3번 재시도로 안정화
-  pcCommands[pcKey] = 'wakeup';
-  setTimeout(() => { if(pcCommands[pcKey] !== 'wakeup') pcCommands[pcKey] = 'wakeup'; }, 3000);
-  setTimeout(() => { if(pcCommands[pcKey] !== 'wakeup') pcCommands[pcKey] = 'wakeup'; }, 7000);
-  console.log(`[자동 WOL] ${pcKey} 켜기 명령 전송 (3회 재시도)`);
+  // 자동 WOL — setPCCommand가 5회 재시도 자동 처리
+  setPCCommand(pcKey, 'wakeup');
+  console.log(`[자동 WOL] ${pcKey} 켜기 명령 전송`);
 
   const state = await getState();
   broadcast('update', state);
@@ -217,8 +215,7 @@ app.post('/api/pc/queue-assign', async (req, res) => {
   if (pcTimers[pcKey]) clearTimeout(pcTimers[pcKey]);
   pcTimers[pcKey] = setTimeout(() => endPC(pcKey, true), 60 * 60 * 1000);
   // 자동 WOL
-  pcCommands[pcKey] = 'wakeup';
-  setTimeout(() => { pcCommands[pcKey] = 'wakeup'; }, 3000);
+  setPCCommand(pcKey, 'wakeup');
   const state = await getState();
   broadcast('update', state);
   broadcast('notify', { type: 'queue_assign', message: `대기자 ${next.name} → ${pcKey} 자동 배정 완료 💡 켜기 명령 전송` });
@@ -234,6 +231,27 @@ app.post('/api/karaoke/queue', async (req, res) => {
   broadcast('update', state);
   broadcast('notify', { type: 'karaoke_queue', message: `코인노래방 대기 — ${name} ${grade||''} (${state.karaokeQueue.length}번째)` });
   res.json({ ok: true, position: state.karaokeQueue.length });
+});
+
+app.post('/api/karaoke/queue-assign', async (req, res) => {
+  const { booth } = req.body;
+  if (!booth) return res.status(400).json({ error: 'booth 필요' });
+  const { data: queue } = await supabase.from('karaoke_queue').select('*').order('id').limit(1);
+  if (!queue?.length) return res.status(400).json({ error: '대기자 없음' });
+  const next = queue[0];
+  const t = nowStr();
+  await Promise.all([
+    supabase.from('karaoke_queue').delete().eq('id', next.id),
+    supabase.from('records').insert({
+      date: todayStr(), time: t, name: next.name, phone: next.phone,
+      facility: '코인노래방', booth, game: '-', active: true,
+      grade: next.grade || '-', gender: next.gender || '-', headcount: next.headcount || 1,
+    }),
+  ]);
+  const state = await getState();
+  broadcast('update', state);
+  broadcast('notify', { type: 'queue_assign', message: `🎤 대기자 ${next.name} → 코인노래방 ${booth} 배정 완료` });
+  res.json({ ok: true });
 });
 
 app.post('/api/karaoke/queue-remove', async (req, res) => {
@@ -297,21 +315,44 @@ const PC_CONFIG = {
   PC6: { mac: '74-56-3C-EA-50-67', ip: '192.168.0.126' },
 };
 
-// 원격제어 명령 대기열 (키오스크 에이전트가 폴링)
-let pcCommands = {}; // { PC1: 'wakeup'|'shutdown'|null, ... }
+// 명령 대기열 — 각 PC별로 명령 + 재시도 횟수 + 만료시간 저장
+let pcCommands = {};
+
+function setPCCommand(pcKey, cmd) {
+  pcCommands[pcKey] = {
+    command: cmd,
+    retryLeft: 5,           // 최대 5번 재시도
+    expireAt: Date.now() + 30000  // 30초 내 실행 안되면 폐기
+  };
+  console.log(`[명령 등록] ${pcKey}: ${cmd} (5회 재시도, 30초 유효)`);
+}
 
 // API: 각 PC 에이전트가 자기 명령만 확인
 app.get('/api/pc/command/:pcKey', (req, res) => {
   const { pcKey } = req.params;
-  const command = pcCommands[pcKey] || null;
-  if (command) {
-    pcCommands[pcKey] = null; // 명령 확인 후 초기화
-    console.log(`[명령 전달] ${pcKey}: ${command}`);
+  const entry = pcCommands[pcKey];
+
+  if (!entry) return res.json({ pcKey, command: null });
+
+  // 만료 확인
+  if (Date.now() > entry.expireAt) {
+    delete pcCommands[pcKey];
+    console.log(`[명령 만료] ${pcKey}`);
+    return res.json({ pcKey, command: null });
   }
-  res.json({ pcKey, command });
+
+  // 재시도 횟수 차감
+  entry.retryLeft--;
+  console.log(`[명령 전달] ${pcKey}: ${entry.command} (남은 재시도: ${entry.retryLeft})`);
+
+  if (entry.retryLeft <= 0) {
+    delete pcCommands[pcKey];
+  }
+
+  res.json({ pcKey, command: entry.command });
 });
 
-// API: 에이전트가 명령 확인 (키오스크 PC에서 5초마다 폴링)
+// API: 에이전트가 명령 확인 (WOL용 — 관리자PC 에이전트)
 app.get('/api/pc/commands', (req, res) => {
   const commands = { ...pcCommands };
   // 명령 확인 후 초기화
@@ -323,7 +364,7 @@ app.get('/api/pc/commands', (req, res) => {
 app.post('/api/pc/wakeup', async (req, res) => {
   const { pcKey } = req.body;
   if (!PC_CONFIG[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
-  pcCommands[pcKey] = 'wakeup';
+  setPCCommand(pcKey, 'wakeup');
   broadcast('notify', { type: 'pc_wakeup', message: `💡 ${pcKey} 켜기 명령 전송` });
   res.json({ ok: true, mac: PC_CONFIG[pcKey].mac });
 });
@@ -332,7 +373,7 @@ app.post('/api/pc/wakeup', async (req, res) => {
 app.post('/api/pc/shutdown', async (req, res) => {
   const { pcKey } = req.body;
   if (!PC_CONFIG[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
-  pcCommands[pcKey] = 'shutdown';
+  setPCCommand(pcKey, 'shutdown');
   broadcast('notify', { type: 'pc_shutdown', message: `🔴 ${pcKey} 끄기 명령 전송` });
   res.json({ ok: true });
 });
