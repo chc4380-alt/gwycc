@@ -196,6 +196,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:#111827;color:var(--txt);m
 
 hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
 
+/* 학년/성별/인원 선택 */
+.grade-row-adm{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+.grade-chip-adm{padding:6px 12px;border:1.5px solid var(--bd);border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;transition:all .12s;color:var(--txt);background:var(--bg);user-select:none;}
+.grade-chip-adm:hover{border-color:var(--g1);background:var(--g4);}
+.grade-chip-adm.sel{color:white;}
+.grade-chip-adm.elem.sel{background:#7c3aed;border-color:#7c3aed;}
+.grade-chip-adm.mid.sel{background:#1d6fb5;border-color:#1d6fb5;}
+.grade-chip-adm.high.sel{background:#dc2626;border-color:#dc2626;}
+.grade-chip-adm.infant.sel{background:#f59e0b;border-color:#f59e0b;}
+.grade-num-row-adm{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;}
+.grade-num-adm{padding:5px 11px;border:1.5px solid var(--bd);border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;transition:all .12px;color:var(--txt);background:var(--bg);}
+.grade-num-adm:hover{border-color:var(--g1);background:var(--g4);}
+.grade-num-adm.sel{border-color:var(--g1);background:var(--g1);color:white;}
+.hc-btn-adm{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--bd);background:var(--bg);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;}
+.hc-btn-adm:hover{border-color:var(--g1);background:var(--g4);}
+.hc-num-adm{font-size:18px;font-weight:900;min-width:24px;text-align:center;}
+
 /* PC 전원 상황판 */
 .power-board{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
 .power-card{border-radius:12px;padding:16px 12px;text-align:center;border:2px solid transparent;transition:all .3s;position:relative;}
@@ -304,10 +321,40 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
         <div class="sec-card">
           <div class="sec-title">PC 직접 등록</div>
           <div class="form-row">
-            <div class="fg"><label class="fl">이름</label><input class="fi" id="adm-pc-name" placeholder="이름" autocomplete="off"></div>
-            <div class="fg"><label class="fl">연락처</label><input class="fi" id="adm-pc-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
+            <div class="fg"><label class="fl">이름 *</label><input class="fi" id="adm-pc-name" placeholder="이름" autocomplete="off"></div>
+            <div class="fg"><label class="fl">연락처 *</label><input class="fi" id="adm-pc-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
           </div>
-          <div class="fg"><label class="fl">PC 선택</label><div style="display:flex;flex-wrap:wrap;gap:7px;" id="adm-pc-chips"></div></div>
+          <!-- 성별·인원수 -->
+          <div class="fg">
+            <label class="fl">성별 · 인원수 *</label>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:12px;font-weight:700;color:#1d6fb5;min-width:45px;">👦 남자</span>
+                <button class="hc-btn-adm" onclick="changeAdmCount('male',-1)">－</button>
+                <div class="hc-num-adm" id="adm-hc-male" style="color:#1d6fb5;">0</div>
+                <button class="hc-btn-adm" onclick="changeAdmCount('male',1)">＋</button>명
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:12px;font-weight:700;color:#db2777;min-width:45px;">👧 여자</span>
+                <button class="hc-btn-adm" onclick="changeAdmCount('female',-1)">－</button>
+                <div class="hc-num-adm" id="adm-hc-female" style="color:#db2777;">0</div>
+                <button class="hc-btn-adm" onclick="changeAdmCount('female',1)">＋</button>명
+              </div>
+              <div style="font-size:12px;color:var(--txt2);padding:5px 10px;background:var(--bg3);border-radius:7px;">총 <span id="adm-hc-total" style="font-weight:700;color:var(--g1);">0</span>명</div>
+            </div>
+          </div>
+          <!-- 학년 -->
+          <div class="fg">
+            <label class="fl">학년 *</label>
+            <div class="grade-row-adm" id="adm-grade-school">
+              <div class="grade-chip-adm infant" onclick="selectAdmSchool('유아')">🧒 유아</div>
+              <div class="grade-chip-adm elem" onclick="selectAdmSchool('초등')">초등</div>
+              <div class="grade-chip-adm mid" onclick="selectAdmSchool('중등')">중등</div>
+              <div class="grade-chip-adm high" onclick="selectAdmSchool('고등')">고등</div>
+            </div>
+            <div class="grade-num-row-adm" id="adm-grade-num" style="display:none;"></div>
+          </div>
+          <div class="fg"><label class="fl">PC 선택 *</label><div style="display:flex;flex-wrap:wrap;gap:7px;" id="adm-pc-chips"></div></div>
           <button class="btn btn-g" onclick="adminStartPC()">💻 PC 이용 시작</button>
         </div>
       </div>
@@ -450,6 +497,32 @@ let recTab='all',recFilter='전체';
 let notifLog=[],newNotifCount=0;
 let adminSelPC=null;
 let sse=null;
+// 관리자 직접 등록용
+let admMale=0,admFemale=0,admGrade={school:'',num:''},admGender='';
+
+function changeAdmCount(type,delta){
+  if(type==='male'){admMale=Math.max(0,Math.min(20,admMale+delta));document.getElementById('adm-hc-male').textContent=admMale;}
+  else{admFemale=Math.max(0,Math.min(20,admFemale+delta));document.getElementById('adm-hc-female').textContent=admFemale;}
+  const t=admMale+admFemale;document.getElementById('adm-hc-total').textContent=t;
+  if(admMale>0&&admFemale===0)admGender='남';
+  else if(admFemale>0&&admMale===0)admGender='여';
+  else if(admMale>0&&admFemale>0)admGender=`혼성(남${admMale}·여${admFemale})`;
+  else admGender='';
+}
+function selectAdmSchool(school){
+  admGrade.school=school;admGrade.num='';
+  document.getElementById('adm-grade-school').querySelectorAll('.grade-chip-adm').forEach(c=>{c.classList.remove('sel');if(c.textContent.includes(school))c.classList.add('sel');});
+  const numRow=document.getElementById('adm-grade-num');
+  if(school==='유아'){numRow.innerHTML='';numRow.style.display='none';admGrade.num='유아';return;}
+  const max=school==='초등'?6:3;
+  numRow.innerHTML='';numRow.style.display='flex';
+  for(let i=1;i<=max;i++){
+    const c=document.createElement('div');c.className='grade-num-adm';c.textContent=i+'학년';
+    c.onclick=()=>{numRow.querySelectorAll('.grade-num-adm').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');admGrade.num=i+'학년';};
+    numRow.appendChild(c);
+  }
+  admGrade.num='';
+}
 
 window.onload=()=>{
   setTimeout(()=>document.getElementById('pw-in').focus(),100);
@@ -638,10 +711,30 @@ async function shutdownPC(k){
 async function adminStartPC(){
   const name=document.getElementById('adm-pc-name').value.trim();
   const phone=document.getElementById('adm-pc-phone').value.trim();
-  if(!name){toast('이름 입력');return;}if(!phone){toast('연락처 입력');return;}if(!adminSelPC){toast('PC 선택');return;}
-  const r=await api('/api/pc/start',{name,phone,pcKey:adminSelPC});
-  if(r.ok){document.getElementById('adm-pc-name').value='';document.getElementById('adm-pc-phone').value='';adminSelPC=null;toast(`✅ ${adminSelPC||'PC'} 등록`);}
-  else toast(r.error||'오류');
+  if(!name){toast('이름 입력');return;}
+  if(!phone){toast('연락처 입력');return;}
+  if(admMale+admFemale<1){toast('인원수 입력');return;}
+  if(!admGrade.school){toast('학교급 선택');return;}
+  if(!admGrade.num&&admGrade.school!=='유아'){toast('학년 선택');return;}
+  if(!adminSelPC){toast('PC 선택');return;}
+  const grade=admGrade.school==='유아'?'유아':admGrade.school+' '+admGrade.num;
+  const genderInfo=(admMale>0&&admFemale>0)?`혼성(남${admMale}·여${admFemale})`:(admMale>0)?`남(${admMale}명)`:`여(${admFemale}명)`;
+  const total=admMale+admFemale;
+  const r=await fetch(`${SERVER}/api/pc/start`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone,pcKey:adminSelPC,grade,gender:genderInfo,headcount:total})});
+  const d=await r.json();
+  if(d.ok){
+    document.getElementById('adm-pc-name').value='';
+    document.getElementById('adm-pc-phone').value='';
+    admMale=0;admFemale=0;admGender='';
+    document.getElementById('adm-hc-male').textContent='0';
+    document.getElementById('adm-hc-female').textContent='0';
+    document.getElementById('adm-hc-total').textContent='0';
+    document.getElementById('adm-grade-school').querySelectorAll('.grade-chip-adm').forEach(c=>c.classList.remove('sel'));
+    document.getElementById('adm-grade-num').innerHTML='';
+    document.getElementById('adm-grade-num').style.display='none';
+    admGrade={school:'',num:''};adminSelPC=null;
+    toast(`✅ ${adminSelPC||'PC'} 등록 완료`);
+  } else toast(d.error||'오류');
 }
 function renderAdmPCChips(){
   const g=document.getElementById('adm-pc-chips');g.innerHTML='';
