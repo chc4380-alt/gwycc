@@ -757,11 +757,31 @@ function renderAdminQueue(){
 // ===================== KARAOKE =====================
 function renderKaraokeAdmin(){
   const list=document.getElementById('adm-karaoke');list.innerHTML='';
-  ['1번 부스','2번 부스'].forEach(booth=>{
+  const queue=state.karaokeQueue||[];
+  ['1번 부스','2번 부스'].forEach((booth,idx)=>{
     const used=state.records.find(r=>r.facility==='코인노래방'&&r.booth===booth&&r.active);
+    const insp=(state.facilityStatus?.['karaoke'+(idx+1)]||{}).inspection;
     const row=document.createElement('div');row.className='fr';
-    row.innerHTML=`<span class="fr-label">${booth}</span><span class="fr-status ${used?'busy':'ok'}">${used?'● 이용중 ('+used.name+')':'✓ 비어있음'}</span><span style="flex:1"></span>`;
-    if(used){const b=document.createElement('button');b.className='btn-sm bs-r';b.textContent='이용종료';b.onclick=async()=>{await api('/api/end',{facility:'코인노래방',booth});toast(booth+' 종료');};row.appendChild(b);}
+    let statusHtml=`<span class="fr-label">${booth}</span>`;
+    if(insp){
+      statusHtml+=`<span class="fr-status" style="color:#b45309;">🔧 점검중</span>`;
+    } else if(used){
+      statusHtml+=`<span class="fr-status busy">● 이용중 (${used.name}${used.headcount>1?' '+used.headcount+'명':''})</span>`;
+    } else {
+      statusHtml+=`<span class="fr-status ok">✓ 비어있음</span>`;
+    }
+    statusHtml+=`<span style="flex:1"></span>`;
+    row.innerHTML=statusHtml;
+    if(used){
+      const b=document.createElement('button');b.className='btn-sm bs-r';b.textContent='이용종료';
+      b.onclick=async()=>{await api('/api/end',{facility:'코인노래방',booth});toast(booth+' 종료');};
+      row.appendChild(b);
+    } else if(!insp&&queue.length>0){
+      // 빈 부스 + 대기자 있으면 배정 버튼
+      const b=document.createElement('button');b.className='btn-sm bs-a';b.textContent='⏳ 대기배정';
+      b.onclick=()=>assignKaraokeQueue(booth);
+      row.appendChild(b);
+    }
     list.appendChild(row);
   });
 }
@@ -771,11 +791,22 @@ function renderKaraokeQueue(){
   d.innerHTML='';
   q.forEach((x,i)=>{
     const el=document.createElement('div');el.className='qi';
-    el.innerHTML=`<div class="qrank">${i+1}</div><div style="flex:1"><div class="qname">${x.name}</div><div class="qmeta">${x.phone} · ${x.time}</div></div><button class="btn-sm bs-r" onclick="removeKaraokeQueue(${x.id})">제거</button>`;
+    el.innerHTML=`<div class="qrank">${i+1}</div><div style="flex:1"><div class="qname">${x.name}${x.headcount>1?' ('+x.headcount+'명)':''}</div><div class="qmeta">${x.gender||''} ${x.grade||''} · ${x.phone} · ${x.time}</div></div><button class="btn-sm bs-r" onclick="removeKaraokeQueue(${x.id})">취소</button>`;
     d.appendChild(el);
   });
 }
-async function removeKaraokeQueue(id){await api('/api/karaoke/queue-remove',{id});toast('대기 제거');}
+async function removeKaraokeQueue(id){
+  if(!confirm('대기를 취소하시겠습니까?'))return;
+  await api('/api/karaoke/queue-remove',{id});
+  toast('대기 취소');
+}
+async function assignKaraokeQueue(booth){
+  if(!confirm(`대기 1순위를 ${booth}에 배정하시겠습니까?`))return;
+  const r=await fetch(`${SERVER}/api/karaoke/queue-assign`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({booth})});
+  const d=await r.json();
+  if(d.ok)toast(`✅ ${booth} 배정 완료!`);
+  else toast('오류: '+(d.error||'알 수 없음'));
+}
 
 // ===================== FACILITY =====================
 function renderFacility(){
