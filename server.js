@@ -1,7 +1,12 @@
 /**
- * 들락날락 키오스크 서버 v3.0
+ * 들락날락 키오스크 서버 v3.1
  * 광양시청소년문화센터
  * Node.js + Express + Supabase + SSE
+ * 
+ * v3.1 변경사항 (트래픽 절감)
+ * - records 조회: 전체 → 오늘 날짜만 필터
+ * - getState() 캐시 도입 (1초 내 중복 호출 방지)
+ * - SSE 연결 수 제한 (동일 IP 중복 연결 방지)
  */
 
 const express = require('express');
@@ -27,32 +32,24 @@ app.use((req, res, next) => {
 let pcTimers = {};
 let sseClients = [];
 
-// ===================== SSE =====================
-function broadcast(eventName, data) {
-  const msg = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
-  sseClients = sseClients.filter(c => { try { c.write(msg); return true; } catch(e) { return false; } });
-}
+// ===================== 【개선 1】 getState 캐시 =====================
+// 1초 이내 중복 호출 시 DB 조회 없이 캐시 반환 → Supabase 요청 수 대폭 감소
+let stateCache = null;
+let stateCacheTime = 0;
+const STATE_CACHE_TTL = 1000; // 1초
 
-app.get('/events', async (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.flushHeaders();
-  try {
-    const state = await getState();
-    res.write(`event: init\ndata: ${JSON.stringify(state)}\n\n`);
-  } catch(e) { console.error('SSE init error:', e); }
-  sseClients.push(res);
-  const hb = setInterval(() => { try { res.write(': heartbeat\n\n'); } catch(e) {} }, 20000);
-  req.on('close', () => { clearInterval(hb); sseClients = sseClients.filter(c => c !== res); });
-});
+async function getState(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && stateCache && (now - stateCacheTime) < STATE_CACHE_TTL) {
+    return stateCache;
+  }
 
-// ===================== 상태 조회 =====================
-async function getState() {
+  // 【개선 2】 records: 전체 조회 → 오늘 날짜만 조회
+  // 날짜 형식이 'YYYY. M. D.' 형태(toLocaleDateString ko-KR)이므로 그대로 사용
+  const today = todayStr();
+
   const [recRes, pcRes, pcQRes, kqRes, notRes, fsRes] = await Promise.all([
-    supabase.from('records').select('*').order('id', { ascending: true }),
+    supabase.from('records').select('*').eq('date', today).order('id', { ascending: true }),
     supabase.from('pc_status').select('*').order('pc_key'),
     supabase.from('pc_queue').select('*').order('id', { ascending: true }),
     supabase.from('karaoke_queue').select('*').order('id', { ascending: true }),
@@ -79,7 +76,19 @@ async function getState() {
   const facilityStatus = {};
   (fsRes.data || []).forEach(f => { facilityStatus[f.id] = { inspection: f.inspection, msg: f.inspection_msg }; });
 
-  return { records, pcStatus, pcQueue, karaokeQueue, notices, facilityStatus, pcPowerStatus };
+  const result = { records, pcStatus, pcQueue, karaokeQueue, notices, facilityStatus, pcPowerStatus };
+
+  // 캐시 저장
+  stateCache = result;
+  stateCacheTime = now;
+
+  return result;
+}
+
+// 캐시 무효화 함수 (데이터 변경 시 호출)
+function invalidateCache() {
+  stateCache = null;
+  stateCacheTime = 0;
 }
 
 const KR_TZ = 'Asia/Seoul';
@@ -88,6 +97,59 @@ function nowStr() {
 }
 function todayStr() {
   return new Date().toLocaleDateString('ko-KR', { timeZone: KR_TZ });
+}
+
+// ===================== SSE =====================
+function broadcast(eventName, data) {
+  const msg = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
+  sseClients = sseClients.filter(c => { try { c.write(msg); return true; } catch(e) { return false; } });
+}
+
+// 【개선 3】 SSE 연결 수 로깅 + 동일 IP 최대 3개 제한
+app.get('/events', async (req, res) => {
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+  // 동일 IP 연결 수 확인
+  const sameIpCount = sseClients.filter(c => c._clientIp === clientIp).length;
+  if (sameIpCount >= 3) {
+    console.warn(`[SSE 제한] ${clientIp} 연결 초과 (${sameIpCount}개) — 거부`);
+    return res.status(429).end();
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
+
+  res._clientIp = clientIp;
+
+  try {
+    const state = await getState();
+    res.write(`event: init\ndata: ${JSON.stringify(state)}\n\n`);
+  } catch(e) { console.error('SSE init error:', e); }
+
+  sseClients.push(res);
+  console.log(`[SSE] 연결 (+1) 현재 ${sseClients.length}개 — ${clientIp}`);
+
+  const hb = setInterval(() => { try { res.write(': heartbeat\n\n'); } catch(e) {} }, 20000);
+  req.on('close', () => {
+    clearInterval(hb);
+    sseClients = sseClients.filter(c => c !== res);
+    console.log(`[SSE] 연결 해제 (-1) 현재 ${sseClients.length}개 — ${clientIp}`);
+  });
+});
+
+// ===================== 상태 조회 헬퍼 (캐시 무효화 후 broadcast) =====================
+async function refreshAndBroadcast(eventName, extraData) {
+  invalidateCache();
+  const state = await getState(true);
+  broadcast('update', state);
+  if (eventName && extraData) {
+    broadcast(eventName, extraData);
+  }
+  return state;
 }
 
 // ===================== PC 타이머 =====================
@@ -111,14 +173,15 @@ async function endPC(pcKey, auto = false) {
     supabase.from('pc_status').update({ free: true, user_name: null, phone: null, start_time: null, end_time: null, end_ms: null }).eq('pc_key', pcKey),
     supabase.from('records').update({ active: false, end_time: nowStr() }).eq('facility', 'PC').eq('booth', pcKey).eq('active', true),
   ]);
-  // 자동 종료 — 키오스크 에이전트가 끄기 명령 수신
   setPCCommand(pcKey, 'shutdown');
   console.log(`[자동 종료] ${pcKey} 끄기 명령 자동 전송`);
 
-  const state = await getState();
-  broadcast('update', state);
-  broadcast('notify', { type: 'pc_end', message: `${pcKey} 이용 종료${auto ? ' (1시간 만료)' : ''} — ${prevUser} 🔴 자동 끄기 명령 전송`, pcKey, auto });
-  // 대기자 있으면 자동 배정 알림
+  const state = await refreshAndBroadcast('notify', {
+    type: 'pc_end',
+    message: `${pcKey} 이용 종료${auto ? ' (1시간 만료)' : ''} — ${prevUser} 🔴 자동 끄기 명령 전송`,
+    pcKey, auto
+  });
+
   if (state.pcQueue.length > 0) {
     broadcast('notify', { type: 'queue_ready', message: `⏳ ${pcKey} 빈자리! 대기자 ${state.pcQueue[0].name}님 배정 가능`, next: state.pcQueue[0], pcKey });
   }
@@ -139,9 +202,7 @@ app.post('/api/register', async (req, res) => {
     headcount: headcount || 1,
   }).select().single();
   if (error) return res.status(500).json({ error: error.message });
-  const state = await getState();
-  broadcast('update', state);
-  broadcast('notify', { type: 'register', message: `${facility} 등록 — ${name} ${gender||''} ${grade||''} ${headcount>1?headcount+'명':''} (${booth || '자유이용'})` });
+  await refreshAndBroadcast('notify', { type: 'register', message: `${facility} 등록 — ${name} ${gender||''} ${grade||''} ${headcount>1?headcount+'명':''} (${booth || '자유이용'})` });
   res.json({ ok: true, record: data });
 });
 
@@ -159,14 +220,9 @@ app.post('/api/pc/start', async (req, res) => {
   ]);
   if (pcTimers[pcKey]) clearTimeout(pcTimers[pcKey]);
   pcTimers[pcKey] = setTimeout(() => endPC(pcKey, true), 60 * 60 * 1000);
-
-  // 자동 WOL — setPCCommand가 5회 재시도 자동 처리
   setPCCommand(pcKey, 'wakeup');
   console.log(`[자동 WOL] ${pcKey} 켜기 명령 전송`);
-
-  const state = await getState();
-  broadcast('update', state);
-  broadcast('notify', { type: 'pc_start', message: `${pcKey} 이용 시작 — ${name} ${gender||''} ${grade||''} (종료: ${endTimeStr}) 💡 자동 켜기 명령 전송`, pcKey });
+  await refreshAndBroadcast('notify', { type: 'pc_start', message: `${pcKey} 이용 시작 — ${name} ${gender||''} ${grade||''} (종료: ${endTimeStr}) 💡 자동 켜기 명령 전송`, pcKey });
   res.json({ ok: true, endTime: endTimeStr });
 });
 
@@ -183,9 +239,7 @@ app.post('/api/pc/queue', async (req, res) => {
   const { name, phone, grade } = req.body;
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
   await supabase.from('pc_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
-  const state = await getState();
-  broadcast('update', state);
-  broadcast('notify', { type: 'queue', message: `PC 대기 등록 — ${name} ${grade||''} (${state.pcQueue.length}번째)` });
+  const state = await refreshAndBroadcast('notify', { type: 'queue', message: `PC 대기 등록 — ${name} ${grade||''}` });
   res.json({ ok: true, position: state.pcQueue.length });
 });
 
@@ -194,8 +248,7 @@ app.post('/api/pc/queue-cancel', async (req, res) => {
   const { id } = req.body;
   if (!id) return res.status(400).json({ error: 'id 필요' });
   await supabase.from('pc_queue').delete().eq('id', id);
-  const state = await getState();
-  broadcast('update', state);
+  await refreshAndBroadcast();
   res.json({ ok: true });
 });
 
@@ -214,11 +267,8 @@ app.post('/api/pc/queue-assign', async (req, res) => {
   ]);
   if (pcTimers[pcKey]) clearTimeout(pcTimers[pcKey]);
   pcTimers[pcKey] = setTimeout(() => endPC(pcKey, true), 60 * 60 * 1000);
-  // 자동 WOL
   setPCCommand(pcKey, 'wakeup');
-  const state = await getState();
-  broadcast('update', state);
-  broadcast('notify', { type: 'queue_assign', message: `대기자 ${next.name} → ${pcKey} 자동 배정 완료 💡 켜기 명령 전송` });
+  await refreshAndBroadcast('notify', { type: 'queue_assign', message: `대기자 ${next.name} → ${pcKey} 자동 배정 완료 💡 켜기 명령 전송` });
   res.json({ ok: true });
 });
 
@@ -227,9 +277,7 @@ app.post('/api/karaoke/queue', async (req, res) => {
   const { name, phone, grade } = req.body;
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
   await supabase.from('karaoke_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
-  const state = await getState();
-  broadcast('update', state);
-  broadcast('notify', { type: 'karaoke_queue', message: `코인노래방 대기 — ${name} ${grade||''} (${state.karaokeQueue.length}번째)` });
+  const state = await refreshAndBroadcast('notify', { type: 'karaoke_queue', message: `코인노래방 대기 — ${name} ${grade||''}` });
   res.json({ ok: true, position: state.karaokeQueue.length });
 });
 
@@ -248,17 +296,14 @@ app.post('/api/karaoke/queue-assign', async (req, res) => {
       grade: next.grade || '-', gender: next.gender || '-', headcount: next.headcount || 1,
     }),
   ]);
-  const state = await getState();
-  broadcast('update', state);
-  broadcast('notify', { type: 'queue_assign', message: `🎤 대기자 ${next.name} → 코인노래방 ${booth} 배정 완료` });
+  await refreshAndBroadcast('notify', { type: 'queue_assign', message: `🎤 대기자 ${next.name} → 코인노래방 ${booth} 배정 완료` });
   res.json({ ok: true });
 });
 
 app.post('/api/karaoke/queue-remove', async (req, res) => {
   const { id } = req.body;
   await supabase.from('karaoke_queue').delete().eq('id', id);
-  const state = await getState();
-  broadcast('update', state);
+  await refreshAndBroadcast();
   res.json({ ok: true });
 });
 
@@ -266,19 +311,17 @@ app.post('/api/karaoke/queue-remove', async (req, res) => {
 app.post('/api/end', async (req, res) => {
   const { facility, booth } = req.body;
   await supabase.from('records').update({ active: false, end_time: nowStr() }).eq('facility', facility).eq('booth', booth).eq('active', true);
-  const state = await getState();
-  broadcast('update', state);
+  await refreshAndBroadcast();
   res.json({ ok: true });
 });
 
-// ===================== PC 전원 상태 (에이전트가 heartbeat 전송) =====================
+// ===================== PC 전원 상태 =====================
 let pcPowerStatus = {
   PC1:{on:false,lastSeen:null},PC2:{on:false,lastSeen:null},
   PC3:{on:false,lastSeen:null},PC4:{on:false,lastSeen:null},
   PC5:{on:false,lastSeen:null},PC6:{on:false,lastSeen:null},
 };
 
-// 각 PC 에이전트가 5초마다 heartbeat 전송
 app.post('/api/pc/heartbeat', (req, res) => {
   const { pcKey } = req.body;
   if (!pcKey || !pcPowerStatus[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
@@ -286,7 +329,6 @@ app.post('/api/pc/heartbeat', (req, res) => {
   res.json({ ok: true });
 });
 
-// 10초 이상 heartbeat 없으면 꺼진 것으로 판단
 setInterval(() => {
   let changed = false;
   Object.keys(pcPowerStatus).forEach(k => {
@@ -300,12 +342,11 @@ setInterval(() => {
   if (changed) broadcast('power', pcPowerStatus);
 }, 5000);
 
-// 전원 상태 조회
 app.get('/api/pc/power', (req, res) => {
   res.json(pcPowerStatus);
 });
 
-// ===================== PC 원격제어 설정 =====================
+// ===================== PC 원격제어 =====================
 const PC_CONFIG = {
   PC1: { mac: '10-FF-E0-9A-E3-D9', ip: '192.168.0.121' },
   PC2: { mac: '74-56-3C-EA-52-85', ip: '192.168.0.122' },
@@ -315,52 +356,38 @@ const PC_CONFIG = {
   PC6: { mac: '74-56-3C-EA-50-67', ip: '192.168.0.126' },
 };
 
-// 명령 대기열 — 각 PC별로 명령 + 재시도 횟수 + 만료시간 저장
 let pcCommands = {};
 
 function setPCCommand(pcKey, cmd) {
   pcCommands[pcKey] = {
     command: cmd,
-    retryLeft: 5,           // 최대 5번 재시도
-    expireAt: Date.now() + 30000  // 30초 내 실행 안되면 폐기
+    retryLeft: 5,
+    expireAt: Date.now() + 30000
   };
   console.log(`[명령 등록] ${pcKey}: ${cmd} (5회 재시도, 30초 유효)`);
 }
 
-// API: 각 PC 에이전트가 자기 명령만 확인
 app.get('/api/pc/command/:pcKey', (req, res) => {
   const { pcKey } = req.params;
   const entry = pcCommands[pcKey];
-
   if (!entry) return res.json({ pcKey, command: null });
-
-  // 만료 확인
   if (Date.now() > entry.expireAt) {
     delete pcCommands[pcKey];
     console.log(`[명령 만료] ${pcKey}`);
     return res.json({ pcKey, command: null });
   }
-
-  // 재시도 횟수 차감
   entry.retryLeft--;
   console.log(`[명령 전달] ${pcKey}: ${entry.command} (남은 재시도: ${entry.retryLeft})`);
-
-  if (entry.retryLeft <= 0) {
-    delete pcCommands[pcKey];
-  }
-
+  if (entry.retryLeft <= 0) delete pcCommands[pcKey];
   res.json({ pcKey, command: entry.command });
 });
 
-// API: 에이전트가 명령 확인 (WOL용 — 관리자PC 에이전트)
 app.get('/api/pc/commands', (req, res) => {
   const commands = { ...pcCommands };
-  // 명령 확인 후 초기화
   Object.keys(pcCommands).forEach(k => { pcCommands[k] = null; });
   res.json(commands);
 });
 
-// API: 관리자가 PC 켜기 명령
 app.post('/api/pc/wakeup', async (req, res) => {
   const { pcKey } = req.body;
   if (!PC_CONFIG[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
@@ -369,7 +396,6 @@ app.post('/api/pc/wakeup', async (req, res) => {
   res.json({ ok: true, mac: PC_CONFIG[pcKey].mac });
 });
 
-// API: 관리자가 PC 끄기 명령
 app.post('/api/pc/shutdown', async (req, res) => {
   const { pcKey } = req.body;
   if (!PC_CONFIG[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
@@ -384,8 +410,7 @@ app.delete('/api/record/:id', async (req, res) => {
   if (!id) return res.status(400).json({ error: 'id 필요' });
   const { error } = await supabase.from('records').delete().eq('id', id);
   if (error) return res.status(500).json({ error: error.message });
-  const state = await getState();
-  broadcast('update', state);
+  await refreshAndBroadcast();
   res.json({ ok: true });
 });
 
@@ -400,16 +425,13 @@ app.post('/api/notices', async (req, res) => {
   if (!title || !content) return res.status(400).json({ error: '제목과 내용을 입력해주세요' });
   const { data, error } = await supabase.from('notices').insert({ title, content, active: true }).select().single();
   if (error) return res.status(500).json({ error: error.message });
-  const state = await getState();
-  broadcast('update', state);
-  broadcast('notify', { type: 'notice', message: `📢 새 공지사항: ${title}` });
+  await refreshAndBroadcast('notify', { type: 'notice', message: `📢 새 공지사항: ${title}` });
   res.json({ ok: true, notice: data });
 });
 
 app.delete('/api/notices/:id', async (req, res) => {
   await supabase.from('notices').update({ active: false }).eq('id', req.params.id);
-  const state = await getState();
-  broadcast('update', state);
+  await refreshAndBroadcast();
   res.json({ ok: true });
 });
 
@@ -417,18 +439,17 @@ app.delete('/api/notices/:id', async (req, res) => {
 app.post('/api/facility/inspection', async (req, res) => {
   const { id, inspection, msg } = req.body;
   await supabase.from('facility_status').update({ inspection, inspection_msg: msg || '점검 중입니다' }).eq('id', id);
-  const state = await getState();
-  broadcast('update', state);
-  broadcast('notify', { type: 'inspection', message: `${inspection ? '🔧 점검 시작' : '✅ 점검 완료'}: ${id}` });
+  await refreshAndBroadcast('notify', { type: 'inspection', message: `${inspection ? '🔧 점검 시작' : '✅ 점검 완료'}: ${id}` });
   res.json({ ok: true });
 });
 
 // ===================== 서버 시작 =====================
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('========================================');
-  console.log('  🎮 들락날락 키오스크 서버 v3.0');
+  console.log('  🎮 들락날락 키오스크 서버 v3.1');
   console.log('  광양시청소년문화센터');
   console.log(`  포트: ${PORT}`);
+  console.log('  [트래픽 절감] records 오늘 날짜 필터 + getState 캐시 적용');
   console.log('========================================');
   await restoreTimers();
   console.log('  [DB] Supabase 연결 완료');
