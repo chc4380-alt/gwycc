@@ -423,11 +423,15 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
             <button class="btn" style="background:var(--blue);color:white;" onclick="downloadCSV()">⬇️ CSV</button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-            <span style="font-size:12px;font-weight:600;color:var(--txt2);">📅 날짜:</span>
-            <select id="date-filter" style="padding:6px 10px;font-size:12px;border:1.5px solid var(--bd);border-radius:6px;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt);" onchange="renderRecTable()">
-              <option value="">전체 날짜</option>
+            <span style="font-size:12px;font-weight:600;color:var(--txt2);">📅 조회:</span>
+            <select id="month-filter" style="padding:6px 10px;font-size:12px;border:1.5px solid var(--bd);border-radius:6px;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt);" onchange="onMonthChange()">
+              <option value="전체">전체</option>
             </select>
-            <button class="btn-sm bs-gray" style="padding:6px 10px;" onclick="document.getElementById('date-filter').value='전체';renderRecTable()">초기화</button>
+            <select id="date-filter" style="padding:6px 10px;font-size:12px;border:1.5px solid var(--bd);border-radius:6px;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt);display:none;" onchange="renderRecTable()">
+              <option value="전체">전체 날짜</option>
+            </select>
+            <button class="btn-sm bs-gray" style="padding:6px 10px;" onclick="resetDateFilter()">초기화</button>
+            <span id="rec-count" style="font-size:11px;color:var(--txt2);margin-left:4px;"></span>
           </div>
           <div class="tab-row">
             <button class="tab-i active" onclick="setTab('all',this)">전체</button>
@@ -451,7 +455,6 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
             </table>
           </div>
           <div id="rec-empty" style="text-align:center;padding:24px;font-size:12px;color:var(--txt2);display:none;">📭 기록 없음</div>
-          <div id="rec-count" style="font-size:11px;color:var(--txt2);margin-top:8px;text-align:right;"></div>
         </div>
       </div>
 
@@ -955,33 +958,88 @@ function fmtTime(t){
   }
   return t.replace(/:\d{2}$/,'');
 }
-// 날짜 드롭다운 목록을 서버에서 가져와 채우기
+// 월별 필터 초기화
 async function populateDateFilter(){
-  const sel=document.getElementById('date-filter');
-  if(!sel)return;
-  const cur=sel.value;
+  const msel=document.getElementById('month-filter');
+  if(!msel)return;
+  const cur=msel.value||'전체';
   try{
-    const r=await fetch(`${SERVER}/api/records?date=전체`);
+    const r=await fetch(`${SERVER}/api/records/dates`);
     const d=await r.json();
-    const allRecords=d.records||[];
-    const dates=[...new Set(allRecords.map(r=>r.date))].sort((a,b)=>{
-      const p=s=>{const m=s.match(/(\d+)/g);return m?new Date(+m[0],+m[1]-1,+m[2]):new Date(0);};
-      return p(b)-p(a);
+    const dates=d.dates||[];
+    // 날짜에서 월 추출: "2026. 6. 9." → "2026년 6월"
+    const months=[...new Set(dates.map(d=>{
+      const m=d.match(/(\d+)\.\s*(\d+)\./);
+      return m?`${m[1]}년 ${m[2]}월`:null;
+    }).filter(Boolean))].sort((a,b)=>{
+      const pa=a.match(/(\d+)년 (\d+)월/),pb=b.match(/(\d+)년 (\d+)월/);
+      return (pb[1]*100+parseInt(pb[2]))-(pa[1]*100+parseInt(pa[2]));
     });
-    sel.innerHTML='<option value="전체">전체 날짜</option>';
-    dates.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;if(d===cur)o.selected=true;sel.appendChild(o);});
+    msel.innerHTML='<option value="전체">전체</option>';
+    months.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;if(m===cur)o.selected=true;msel.appendChild(o);});
   }catch(e){console.error('날짜 목록 로드 실패',e);}
 }
+
+// 월 선택 시 → 날짜 드롭다운 갱신 후 테이블 렌더
+async function onMonthChange(){
+  const msel=document.getElementById('month-filter');
+  const dsel=document.getElementById('date-filter');
+  const month=msel.value;
+  if(month==='전체'){
+    dsel.style.display='none';
+    dsel.value='전체';
+    renderRecTable();
+    return;
+  }
+  // 해당 월의 날짜 목록 가져오기
+  try{
+    const r=await fetch(`${SERVER}/api/records/dates`);
+    const d=await r.json();
+    const allDates=d.dates||[];
+    const mm=month.match(/(\d+)년 (\d+)월/);
+    const filtered=allDates.filter(dt=>{
+      const m=dt.match(/(\d+)\.\s*(\d+)\./);
+      return m&&m[1]===mm[1]&&parseInt(m[2])===parseInt(mm[2]);
+    }).sort((a,b)=>{
+      const pa=a.match(/(\d+)/g),pb=b.match(/(\d+)/g);
+      return new Date(+pb[0],+pb[1]-1,+pb[2])-new Date(+pa[0],+pa[1]-1,+pa[2]);
+    });
+    dsel.innerHTML='<option value="전체월">'+month+' 전체</option>';
+    filtered.forEach(dt=>{const o=document.createElement('option');o.value=dt;o.textContent=dt;dsel.appendChild(o);});
+    dsel.style.display='inline-block';
+    dsel.value='전체월';
+    renderRecTable();
+  }catch(e){console.error('날짜 목록 로드 실패',e);}
+}
+
+// 초기화 버튼
+function resetDateFilter(){
+  document.getElementById('month-filter').value='전체';
+  const dsel=document.getElementById('date-filter');
+  dsel.style.display='none';
+  dsel.value='전체';
+  renderRecTable();
+}
 async function renderRecTable(){
-  const sel=document.getElementById('date-filter');
-  const dateVal=sel?.value||'전체';
+  const msel=document.getElementById('month-filter');
+  const dsel=document.getElementById('date-filter');
+  const monthVal=msel?.value||'전체';
+  const dateVal=dsel?.value||'전체';
+
+  // API 요청 파라미터 결정
+  let apiDate='전체';
+  if(dateVal!=='전체'&&dateVal!=='전체월'){
+    apiDate=dateVal; // 특정 날짜
+  } else if(monthVal!=='전체'){
+    apiDate='월:'+monthVal; // 월별
+  }
 
   // 로딩 표시
   const tb=document.getElementById('rec-tbody');
   if(tb)tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:20px;color:#9ca3af;">불러오는 중...</td></tr>';
 
   try{
-    const r=await fetch(`${SERVER}/api/records?date=${encodeURIComponent(dateVal)}`);
+    const r=await fetch(`${SERVER}/api/records?date=${encodeURIComponent(apiDate)}`);
     const d=await r.json();
     let data=d.records||[];
 
