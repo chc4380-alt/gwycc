@@ -427,7 +427,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
             <select id="date-filter" style="padding:6px 10px;font-size:12px;border:1.5px solid var(--bd);border-radius:6px;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt);" onchange="renderRecTable()">
               <option value="">전체 날짜</option>
             </select>
-            <button class="btn-sm bs-gray" style="padding:6px 10px;" onclick="document.getElementById('date-filter').value='';renderRecTable()">초기화</button>
+            <button class="btn-sm bs-gray" style="padding:6px 10px;" onclick="document.getElementById('date-filter').value='전체';renderRecTable()">초기화</button>
           </div>
           <div class="tab-row">
             <button class="tab-i active" onclick="setTab('all',this)">전체</button>
@@ -645,8 +645,8 @@ function renderAll(){
   renderFacility();
   renderInspection();
   renderNotices();
-  renderRecTable();
-  // 전원 상황판 — state에 pcPowerStatus 있으면 바로 렌더
+  // 이용기록부는 SSE 업데이트 시 자동 갱신하지 않음
+  // (날짜별 조회는 /api/records 별도 호출 — 탭 클릭/날짜 변경 시만 갱신)
   if(state.pcPowerStatus) renderPowerBoard(state.pcPowerStatus);
 }
 
@@ -955,30 +955,58 @@ function fmtTime(t){
   }
   return t.replace(/:\d{2}$/,'');
 }
-function populateDateFilter(){
+// 날짜 드롭다운 목록을 서버에서 가져와 채우기
+async function populateDateFilter(){
   const sel=document.getElementById('date-filter');
   if(!sel)return;
   const cur=sel.value;
-  sel.innerHTML='<option value="">전체 날짜</option>';
-  const dates=[...new Set(state.records.map(r=>r.date))].sort((a,b)=>{
-    const p=s=>{const m=s.match(/(\d+)/g);return m?new Date(+m[0],+m[1]-1,+m[2]):new Date(0);};
-    return p(b)-p(a);
-  });
-  dates.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;if(d===cur)o.selected=true;sel.appendChild(o);});
+  try{
+    const r=await fetch(`${SERVER}/api/records?date=전체`);
+    const d=await r.json();
+    const allRecords=d.records||[];
+    const dates=[...new Set(allRecords.map(r=>r.date))].sort((a,b)=>{
+      const p=s=>{const m=s.match(/(\d+)/g);return m?new Date(+m[0],+m[1]-1,+m[2]):new Date(0);};
+      return p(b)-p(a);
+    });
+    sel.innerHTML='<option value="전체">전체 날짜</option>';
+    dates.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;if(d===cur)o.selected=true;sel.appendChild(o);});
+  }catch(e){console.error('날짜 목록 로드 실패',e);}
 }
-function renderRecTable(){
-  populateDateFilter();
-  const data=getFiltered();
-  const tb=document.getElementById('rec-tbody');if(!tb)return;tb.innerHTML='';
-  const ec=document.getElementById('rec-empty');if(ec)ec.style.display=data.length?'none':'block';
-  const rc=document.getElementById('rec-count');if(rc)rc.textContent=`총 ${data.length}건`;
-  const fc={'코인노래방':'ca','닌텐도':'cp','오락기':'cb','포켓볼':'cb','PC':'cb','보드게임':'cg'};
-  data.forEach((r,idx)=>{
-    const tr=document.createElement('tr');
-    const gd=r.gender==='남'?'👦 남':r.gender==='여'?'👧 여':r.gender||'-';
-    tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:#2d9d5c;font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;text-align:center">${gd}</td><td style="font-size:11px;text-align:center;font-weight:700;color:var(--g1)">${r.headcount||1}명</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:#7c3aed">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><span class="chip ${r.active?'cg':'cr'}">${r.active?'이용중':'종료'}</span></td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
-    tb.appendChild(tr);
-  });
+async function renderRecTable(){
+  const sel=document.getElementById('date-filter');
+  const dateVal=sel?.value||'전체';
+
+  // 로딩 표시
+  const tb=document.getElementById('rec-tbody');
+  if(tb)tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:20px;color:#9ca3af;">불러오는 중...</td></tr>';
+
+  try{
+    const r=await fetch(`${SERVER}/api/records?date=${encodeURIComponent(dateVal)}`);
+    const d=await r.json();
+    let data=d.records||[];
+
+    // 탭/시설 필터 (클라이언트 측)
+    if(recTab==='today')data=data.filter(r=>r.date===todayStr());
+    if(recTab==='active')data=data.filter(r=>r.active);
+    if(recTab==='ended')data=data.filter(r=>!r.active);
+    if(recFilter!=='전체')data=data.filter(r=>r.facility===recFilter);
+    data.sort((a,b)=>a.id-b.id);
+
+    if(!tb)return;tb.innerHTML='';
+    const ec=document.getElementById('rec-empty');if(ec)ec.style.display=data.length?'none':'block';
+    const rc=document.getElementById('rec-count');if(rc)rc.textContent=`총 ${data.length}건`;
+    const fc={'코인노래방':'ca','닌텐도':'cp','오락기':'cb','포켓볼':'cb','PC':'cb','보드게임':'cg'};
+    data.forEach((r,idx)=>{
+      const tr=document.createElement('tr');
+      const gd=r.gender==='남'?'👦 남':r.gender==='여'?'👧 여':r.gender||'-';
+      tr.innerHTML=`<td style="font-weight:700;color:var(--g1);text-align:center">${idx+1}</td><td style="font-size:10px;white-space:nowrap;line-height:1.6">${r.date}<br><span style="color:#2d9d5c;font-weight:600;font-size:11px">${fmtTime(r.time)}</span></td><td style="font-weight:600">${r.name}</td><td style="font-size:11px;text-align:center">${gd}</td><td style="font-size:11px;text-align:center;font-weight:700;color:var(--g1)">${r.headcount||1}명</td><td style="font-size:10px;color:var(--txt2)">${r.phone}</td><td style="font-size:10px;color:#7c3aed">${r.grade||'-'}</td><td><span class="chip ${fc[r.facility]||'cg'}">${r.facility}</span></td><td style="font-size:11px">${r.booth}</td><td style="font-size:10px;color:var(--txt2)">${r.game!=='-'?r.game:''}</td><td><span class="chip ${r.active?'cg':'cr'}">${r.active?'이용중':'종료'}</span></td><td><button onclick="deleteRecord(${r.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:5px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">삭제</button></td>`;
+      tb.appendChild(tr);
+    });
+    // 인쇄/CSV용으로 현재 데이터 저장
+    window._lastFilteredRecords=data;
+  }catch(e){
+    if(tb)tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:20px;color:#dc2626;">데이터 로드 실패</td></tr>';
+  }
 }
 async function deleteRecord(id){
   if(!confirm('이 기록을 삭제하시겠습니까?'))return;
@@ -990,7 +1018,7 @@ async function deleteRecord(id){
   }catch(e){toast('서버 연결 오류');}
 }
 function printRecords(){
-  const data=getFiltered();
+  const data=window._lastFilteredRecords||[];
   const dateVal=document.getElementById('date-filter')?.value||'';
   const tabLabel={all:'전체',today:'오늘',active:'이용중',ended:'종료'}[recTab];
   const printTitle=dateVal?`${dateVal} 이용 기록`:`${recFilter} / ${tabLabel}`;
@@ -1039,7 +1067,7 @@ function doPrint(){
   w.document.close();w.focus();setTimeout(()=>w.print(),800);
 }
 function downloadCSV(){
-  const data=getFiltered();
+  const data=window._lastFilteredRecords||[];
   const hdr=['순번','날짜·시간','이름','성별','연락처','학년','시설','부스/번호','게임명','상태'];
   const rows=data.map((r,i)=>[i+1,`${r.date} ${fmtTime(r.time)}`,r.name,r.gender||'-',r.phone,r.grade||'-',r.facility,r.booth,r.game,r.active?'이용중':'종료']);
   const csv='\uFEFF'+[hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
@@ -1077,6 +1105,8 @@ function goPage(id,btn){
   const titles={pc:'💻 PC 관리',karaoke:'🎤 코인노래방',facility:'🎮 시설 현황',inspection:'🔧 시설 점검',notices:'📢 공지사항',records:'📋 이용기록부',notif:'🔔 알림 로그'};
   document.getElementById('main-title').textContent=titles[id]||'';
   if(id==='notif'){newNotifCount=0;document.getElementById('notif-badge').style.display='none';}
+  // 이용기록부 탭 진입 시 날짜 목록 + 데이터 로드
+  if(id==='records'){populateDateFilter().then(()=>renderRecTable());}
 }
 function closeOv(id){document.getElementById(id).classList.remove('open');}
 
