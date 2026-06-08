@@ -1,12 +1,12 @@
 /**
- * 들락날락 키오스크 서버 v3.1
+ * 들락날락 키오스크 서버 v3.2
  * 광양시청소년문화센터
  * Node.js + Express + Supabase + SSE
- * 
- * v3.1 변경사항 (트래픽 절감)
- * - records 조회: 전체 → 오늘 날짜만 필터
- * - getState() 캐시 도입 (1초 내 중복 호출 방지)
- * - SSE 연결 수 제한 (동일 IP 중복 연결 방지)
+ *
+ * v3.2 변경사항 (이용기록부 전체 날짜 조회)
+ * - /api/records 엔드포인트 추가: ?date=전체 또는 ?date=2026. 5. 13.
+ * - getState()는 SSE/실시간용으로 오늘 날짜만 유지 (트래픽 절감 유지)
+ * - admin.html의 이용기록부 탭에서 날짜 선택 시 /api/records 호출
  */
 
 const express = require('express');
@@ -32,8 +32,7 @@ app.use((req, res, next) => {
 let pcTimers = {};
 let sseClients = [];
 
-// ===================== 【개선 1】 getState 캐시 =====================
-// 1초 이내 중복 호출 시 DB 조회 없이 캐시 반환 → Supabase 요청 수 대폭 감소
+// ===================== getState 캐시 =====================
 let stateCache = null;
 let stateCacheTime = 0;
 const STATE_CACHE_TTL = 1000; // 1초
@@ -44,8 +43,7 @@ async function getState(forceRefresh = false) {
     return stateCache;
   }
 
-  // 【개선 2】 records: 전체 조회 → 오늘 날짜만 조회
-  // 날짜 형식이 'YYYY. M. D.' 형태(toLocaleDateString ko-KR)이므로 그대로 사용
+  // SSE/실시간용: 오늘 날짜만 조회 (트래픽 절감 유지)
   const today = todayStr();
 
   const [recRes, pcRes, pcQRes, kqRes, notRes, fsRes] = await Promise.all([
@@ -78,14 +76,12 @@ async function getState(forceRefresh = false) {
 
   const result = { records, pcStatus, pcQueue, karaokeQueue, notices, facilityStatus, pcPowerStatus };
 
-  // 캐시 저장
   stateCache = result;
   stateCacheTime = now;
 
   return result;
 }
 
-// 캐시 무효화 함수 (데이터 변경 시 호출)
 function invalidateCache() {
   stateCache = null;
   stateCacheTime = 0;
@@ -105,11 +101,9 @@ function broadcast(eventName, data) {
   sseClients = sseClients.filter(c => { try { c.write(msg); return true; } catch(e) { return false; } });
 }
 
-// 【개선 3】 SSE 연결 수 로깅 + 동일 IP 최대 3개 제한
 app.get('/events', async (req, res) => {
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-  // 동일 IP 연결 수 확인
   const sameIpCount = sseClients.filter(c => c._clientIp === clientIp).length;
   if (sameIpCount >= 3) {
     console.warn(`[SSE 제한] ${clientIp} 연결 초과 (${sameIpCount}개) — 거부`);
@@ -141,7 +135,7 @@ app.get('/events', async (req, res) => {
   });
 });
 
-// ===================== 상태 조회 헬퍼 (캐시 무효화 후 broadcast) =====================
+// ===================== 상태 조회 헬퍼 =====================
 async function refreshAndBroadcast(eventName, extraData) {
   invalidateCache();
   const state = await getState(true);
@@ -151,6 +145,43 @@ async function refreshAndBroadcast(eventName, extraData) {
   }
   return state;
 }
+
+// ===================== API: 상태 (실시간/오늘) =====================
+app.get('/api/state', async (req, res) => {
+  try { res.json(await getState()); } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===================== API: 이용기록 조회 (날짜 필터 지원) =====================
+// ?date=전체  → 전체 기간
+// ?date=2026. 5. 13.  → 특정 날짜
+// (파라미터 없음)  → 오늘
+app.get('/api/records', async (req, res) => {
+  try {
+    const { date } = req.query;
+    let query = supabase.from('records').select('*').order('id', { ascending: true });
+
+    if (!date || date === '오늘') {
+      query = query.eq('date', todayStr());
+    } else if (date !== '전체') {
+      query = query.eq('date', date);
+    }
+    // date === '전체' 이면 필터 없이 전체 조회
+
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    const records = (data || []).map(r => ({
+      id: r.id, date: r.date, time: r.time,
+      name: r.name, phone: r.phone, facility: r.facility,
+      booth: r.booth, game: r.game || '-', active: r.active, endTime: r.end_time,
+      grade: r.grade || '-', gender: r.gender || '-', headcount: r.headcount || 1,
+    }));
+
+    res.json({ records });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ===================== PC 타이머 =====================
 async function restoreTimers() {
@@ -186,11 +217,6 @@ async function endPC(pcKey, auto = false) {
     broadcast('notify', { type: 'queue_ready', message: `⏳ ${pcKey} 빈자리! 대기자 ${state.pcQueue[0].name}님 배정 가능`, next: state.pcQueue[0], pcKey });
   }
 }
-
-// ===================== API: 상태 =====================
-app.get('/api/state', async (req, res) => {
-  try { res.json(await getState()); } catch(e) { res.status(500).json({ error: e.message }); }
-});
 
 // ===================== API: 일반 시설 등록 =====================
 app.post('/api/register', async (req, res) => {
@@ -446,10 +472,10 @@ app.post('/api/facility/inspection', async (req, res) => {
 // ===================== 서버 시작 =====================
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('========================================');
-  console.log('  🎮 들락날락 키오스크 서버 v3.1');
+  console.log('  🎮 들락날락 키오스크 서버 v3.2');
   console.log('  광양시청소년문화센터');
   console.log(`  포트: ${PORT}`);
-  console.log('  [트래픽 절감] records 오늘 날짜 필터 + getState 캐시 적용');
+  console.log('  [v3.2] /api/records?date= 엔드포인트 추가 (전체 날짜 조회)');
   console.log('========================================');
   await restoreTimers();
   console.log('  [DB] Supabase 연결 완료');
