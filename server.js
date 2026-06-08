@@ -151,6 +151,21 @@ app.get('/api/state', async (req, res) => {
   try { res.json(await getState()); } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ===================== API: 이용기록 날짜 목록 =====================
+app.get('/api/records/dates', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('records')
+      .select('date')
+      .order('date', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    const dates = [...new Set((data || []).map(r => r.date))];
+    res.json({ dates });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ===================== API: 이용기록 조회 (날짜 필터 지원) =====================
 // ?date=전체  → 전체 기간
 // ?date=2026. 5. 13.  → 특정 날짜
@@ -158,11 +173,20 @@ app.get('/api/state', async (req, res) => {
 app.get('/api/records', async (req, res) => {
   try {
     const { date } = req.query;
-    let query = supabase.from('records').select('*').order('id', { ascending: true });
+    let query = supabase.from('records').select('*').order('id', { ascending: true }).limit(10000);
 
     if (!date || date === '오늘') {
+      // 오늘만
       query = query.eq('date', todayStr());
+    } else if (date.startsWith('월:')) {
+      // 월별 필터: "월:2026년 6월" → "2026. 6." 포함하는 날짜
+      const m = date.match(/(\d+)년\s*(\d+)월/);
+      if (m) {
+        const prefix = `${m[1]}. ${parseInt(m[2])}.`; // "2026. 6."
+        query = query.like('date', `${prefix}%`);
+      }
     } else if (date !== '전체') {
+      // 특정 날짜
       query = query.eq('date', date);
     }
     // date === '전체' 이면 필터 없이 전체 조회
