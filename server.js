@@ -35,7 +35,7 @@ let sseClients = [];
 // ===================== getState 캐시 =====================
 let stateCache = null;
 let stateCacheTime = 0;
-const STATE_CACHE_TTL = 1000; // 1초
+const STATE_CACHE_TTL = 5000; // 5초
 
 async function getState(forceRefresh = false) {
   const now = Date.now();
