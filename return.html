@@ -182,10 +182,23 @@ window.onload = () => {
 
 function connectSSE() {
   setConn('ing', '서버 연결 중...');
-  const sse = new EventSource(`${SERVER}/events`);
-  sse.addEventListener('init', e => { state = JSON.parse(e.data); renderList(); setConn('ok', '실시간 연결됨 ✓'); });
-  sse.addEventListener('update', e => { state = JSON.parse(e.data); renderList(); });
-  sse.onerror = () => { setConn('err', '재연결 중...'); setTimeout(connectSSE, 3000); };
+  fetchState().then(() => startPolling());
+}
+async function fetchState() {
+  try {
+    const r = await fetch(`${SERVER}/api/state`);
+    if (!r.ok) throw new Error('status ' + r.status);
+    state = await r.json();
+    renderList();
+    setConn('ok', '연결됨 ✓');
+  } catch(e) {
+    setConn('err', '재연결 중...');
+  }
+}
+function startPolling() {
+  setInterval(() => {
+    fetch(`${SERVER}/api/state`).then(r => r.json()).then(s => { state = s; renderList(); setConn('ok', '연결됨 ✓'); }).catch(() => setConn('err', '재연결 중...'));
+  }, 30000);
 }
 function setConn(t, m) {
   document.getElementById('conn-dot').className = 'conn-dot conn-' + t;
