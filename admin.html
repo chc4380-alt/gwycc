@@ -499,7 +499,6 @@ let state={records:[],pcStatus:{},pcQueue:[],karaokeQueue:[],notices:[],facility
 let recTab='all',recFilter='전체';
 let notifLog=[],newNotifCount=0;
 let adminSelPC=null;
-let sse=null;
 // 관리자 직접 등록용
 let admMale=0,admFemale=0,admGrade={school:'',num:''},admGender='';
 
@@ -564,26 +563,55 @@ function initAdmin(){
 let sseRetryDelay=1000;
 function connectSSE(){
   setConn('ing','연결 중...');
-  if(sse){sse.close();sse=null;}
-  sse=new EventSource(`${SERVER}/events`);
-  sse.addEventListener('init',e=>{
-    state=JSON.parse(e.data);renderAll();
-    setConn('ok','실시간 연결됨 ✓');
+  fetchState().then(()=>startPolling());
+}
+async function fetchState(){
+  try{
+    const r=await fetch(`${SERVER}/api/state`);
+    if(!r.ok)throw new Error('status '+r.status);
+    const newState=await r.json();
+    detectAndNotify(state,newState);
+    state=newState;renderAll();
+    setConn('ok','연결됨 ✓');
     fetchPowerStatus();
-    sseRetryDelay=1000; // 성공 시 딜레이 초기화
+  }catch(e){
+    setConn('err','재연결 중...');
+  }
+}
+function startPolling(){
+  setInterval(()=>{
+    fetch(`${SERVER}/api/state`).then(r=>r.json()).then(newState=>{
+      detectAndNotify(state,newState);
+      state=newState;renderAll();
+      setConn('ok','연결됨 ✓');
+    }).catch(()=>setConn('err','재연결 중...'));
+  },30000);
+}
+// 상태 변화 감지 → 알림 생성
+function detectAndNotify(prev,next){
+  if(!prev||!prev.records)return;
+  // 새 이용 등록 감지
+  (next.records||[]).forEach(r=>{
+    if(r.active&&!prev.records.find(p=>p.id===r.id)){
+      addNotif({type:'register',message:`${r.facility} 등록 — ${r.name} ${r.gender||''} ${r.grade||''}`});
+    }
   });
-  sse.addEventListener('update',e=>{state=JSON.parse(e.data);renderAll();});
-  sse.addEventListener('power',e=>{const d=JSON.parse(e.data);renderPowerBoard(d);});
-  sse.addEventListener('notify',e=>{const d=JSON.parse(e.data);addNotif(d);});
-  sse.onerror=()=>{
-    sse.close();sse=null;
-    const sec=Math.round(sseRetryDelay/1000);
-    setConn('err','재연결 중... ('+sec+'초 후)');
-    setTimeout(()=>{
-      sseRetryDelay=Math.min(sseRetryDelay*2,60000); // 최대 60초
-      connectSSE();
-    },sseRetryDelay);
-  };
+  // PC 종료 감지
+  for(let i=1;i<=6;i++){
+    const k='PC'+i;
+    const prevS=prev.pcStatus&&prev.pcStatus[k];
+    const nextS=next.pcStatus&&next.pcStatus[k];
+    if(prevS&&!prevS.free&&nextS&&nextS.free){
+      addNotif({type:'pc_end',message:`${k} 이용 종료 — ${prevS.user||''}`});
+    }
+  }
+  // 대기자 추가 감지
+  const prevQ=(prev.pcQueue||[]).length;
+  const nextQ=(next.pcQueue||[]).length;
+  if(nextQ>prevQ){
+    const newQ=next.pcQueue[next.pcQueue.length-1];
+    if(newQ)addNotif({type:'queue',message:`PC 대기 등록 — ${newQ.name} ${newQ.grade||''}`});
+  }
 }
 
 // 전원 상태 가져오기
