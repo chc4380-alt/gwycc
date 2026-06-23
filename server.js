@@ -89,6 +89,14 @@ function invalidateCache() {
   stateCacheTime = 0;
 }
 
+function formatPhone(phone) {
+  const v = (phone || '').replace(/\D/g, '');
+  if (v.length > 10) return `${v.slice(0,3)}-${v.slice(3,7)}-${v.slice(7,11)}`;
+  if (v.length > 7) return `${v.slice(0,3)}-${v.slice(3,6)}-${v.slice(6,10)}`;
+  if (v.length > 3) return `${v.slice(0,3)}-${v.slice(3)}`;
+  return phone;
+}
+
 const KR_TZ = 'Asia/Seoul';
 function nowStr() {
   return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: KR_TZ, hour12: false });
@@ -363,7 +371,7 @@ app.post('/api/karaoke/queue-remove', async (req, res) => {
 app.post('/api/pool/queue', async (req, res) => {
   const { name, phone, grade } = req.body;
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
-  await supabase.from('pool_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
+  await supabase.from('pool_queue').insert({ name, phone: formatPhone(phone), time: nowStr(), grade: grade || '-' });
   const state = await refreshAndBroadcast('notify', { type: 'pool_queue', message: `포켓볼 대기 등록 — ${name} ${grade||''}` });
   res.json({ ok: true, position: state.poolQueue.length });
 });
@@ -378,7 +386,7 @@ app.post('/api/pool/queue-assign', async (req, res) => {
   await Promise.all([
     supabase.from('pool_queue').delete().eq('id', next.id),
     supabase.from('records').insert({
-      date: todayStr(), time: t, name: next.name, phone: next.phone,
+      date: todayStr(), time: t, name: next.name, phone: formatPhone(next.phone),
       facility: '포켓볼', booth, game: '-', active: true,
       grade: next.grade || '-', gender: next.gender || '-', headcount: next.headcount || 1,
     }),
