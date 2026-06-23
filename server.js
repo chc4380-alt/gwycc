@@ -175,7 +175,7 @@ app.get('/api/records/dates', async (req, res) => {
 app.get('/api/records', async (req, res) => {
   try {
     const { date } = req.query;
-    let query = supabase.from('records').select('*').order('id', { ascending: true }).limit(10000);
+    let query = supabase.from('records').select('*').order('id', { ascending: false }).limit(10000);
 
     if (!date || date === '오늘') {
       // 오늘만
