@@ -22,7 +22,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#111827;color:var(--txt);m
 .layout{display:grid;grid-template-columns:240px 1fr;min-height:100vh;}
 
 /* SIDEBAR */
-.sidebar{background:#1f2937;display:flex;flex-direction:column;border-right:1px solid #374151;}
+.sidebar{background:#1f2937;display:flex;flex-direction:column;border-right:1px solid #374151;position:sticky;top:0;height:100vh;align-self:start;}
 .sb-hdr{padding:16px;border-bottom:1px solid #374151;}
 .sb-brand{font-family:'Black Han Sans',sans-serif;font-size:18px;color:#fff;letter-spacing:2px;}
 .sb-sub{font-size:10px;color:#9ca3af;margin-top:2px;}
@@ -375,7 +375,12 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
       <div class="page" id="page-facility">
         <div class="sec-card"><div class="sec-title">🕹️ 닌텐도</div><div class="fac-rows" id="adm-nintendo"></div></div>
         <div class="sec-card"><div class="sec-title">👾 오락기</div><div class="fac-rows" id="adm-arcade"></div></div>
-        <div class="sec-card"><div class="sec-title">🎱 포켓볼 · 🎲 보드게임</div><div class="fac-rows" id="adm-others"></div></div>
+        <div class="sec-card"><div class="sec-title">🎱 포켓볼</div><div class="fac-rows" id="adm-pool"></div></div>
+        <div class="sec-card">
+          <div class="sec-title">⏳ 포켓볼 대기 현황</div>
+          <div id="adm-pool-queue"></div>
+        </div>
+        <div class="sec-card"><div class="sec-title">🎲 보드게임</div><div class="fac-rows" id="adm-others"></div></div>
       </div>
 
       <!-- 시설 점검 -->
@@ -495,7 +500,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
 const ADMIN_PW='2230';
 const SERVER='https://gwycc-production.up.railway.app';
 
-let state={records:[],pcStatus:{},pcQueue:[],karaokeQueue:[],notices:[],facilityStatus:{}};
+let state={records:[],pcStatus:{},pcQueue:[],karaokeQueue:[],poolQueue:[],notices:[],facilityStatus:{}};
 let recTab='all',recFilter='전체';
 let notifLog=[],newNotifCount=0;
 let adminSelPC=null;
@@ -701,7 +706,7 @@ function renderSummary(){
   const pcBusy=Object.values(state.pcStatus).filter(s=>!s.free).length;
   const active=state.records.filter(r=>r.active).length;
   const today=state.records.filter(r=>r.date===todayStr()).length;
-  const qTotal=(state.pcQueue||[]).length+(state.karaokeQueue||[]).length;
+  const qTotal=(state.pcQueue||[]).length+(state.karaokeQueue||[]).length+(state.poolQueue||[]).length;
   document.getElementById('summary-cards').innerHTML=`
     <div class="s-card green"><div class="s-val">${6-pcBusy}</div><div class="s-lbl">PC 빈자리</div></div>
     <div class="s-card red"><div class="s-val">${pcBusy}</div><div class="s-lbl">PC 이용중</div></div>
@@ -858,7 +863,59 @@ async function assignKaraokeQueue(booth){
 function renderFacility(){
   renderFacSection('adm-nintendo','닌텐도',['1번','2번','3번','4번','5번']);
   renderFacSection('adm-arcade','오락기',['1번','2번','3번','4번']);
+  renderPoolAdmin();
+  renderPoolQueue();
   renderOthers();
+}
+function renderPoolAdmin(){
+  const list=document.getElementById('adm-pool');list.innerHTML='';
+  const queue=state.poolQueue||[];
+  const booth='1다이';
+  const used=state.records.find(r=>r.facility==='포켓볼'&&r.booth===booth&&r.active);
+  const insp=(state.facilityStatus?.['pool']||{}).inspection;
+  const row=document.createElement('div');row.className='fr';
+  let statusHtml=`<span class="fr-label">${booth}</span>`;
+  if(insp){
+    statusHtml+=`<span class="fr-status" style="color:#b45309;">🔧 점검중</span>`;
+  } else if(used){
+    statusHtml+=`<span class="fr-status busy">● 이용중 (${used.name}${used.headcount>1?' '+used.headcount+'명':''})</span>`;
+  } else {
+    statusHtml+=`<span class="fr-status ok">✓ 비어있음</span>`;
+  }
+  statusHtml+=`<span style="flex:1"></span>`;
+  row.innerHTML=statusHtml;
+  if(used){
+    const b=document.createElement('button');b.className='btn-sm bs-r';b.textContent='이용종료';
+    b.onclick=async()=>{await api('/api/end',{facility:'포켓볼',booth});toast(booth+' 종료');};
+    row.appendChild(b);
+  } else if(!insp&&queue.length>0){
+    const b=document.createElement('button');b.className='btn-sm bs-a';b.textContent='⏳ 대기배정';
+    b.onclick=()=>assignPoolQueue(booth);
+    row.appendChild(b);
+  }
+  list.appendChild(row);
+}
+function renderPoolQueue(){
+  const d=document.getElementById('adm-pool-queue'),q=state.poolQueue||[];
+  if(!q.length){d.innerHTML='<div style="font-size:12px;color:var(--txt2);padding:5px 0;">대기 없음</div>';return;}
+  d.innerHTML='';
+  q.forEach((x,i)=>{
+    const el=document.createElement('div');el.className='qi';
+    el.innerHTML=`<div class="qrank">${i+1}</div><div style="flex:1"><div class="qname">${x.name}${x.headcount>1?' ('+x.headcount+'명)':''}</div><div class="qmeta">${x.gender||''} ${x.grade||''} · ${x.phone} · ${x.time}</div></div><button class="btn-sm bs-r" onclick="removePoolQueue(${x.id})">취소</button>`;
+    d.appendChild(el);
+  });
+}
+async function removePoolQueue(id){
+  if(!confirm('대기를 취소하시겠습니까?'))return;
+  await api('/api/pool/queue-remove',{id});
+  toast('대기 취소');
+}
+async function assignPoolQueue(booth){
+  if(!confirm(`대기 1순위를 ${booth}에 배정하시겠습니까?`))return;
+  const r=await fetch(`${SERVER}/api/pool/queue-assign`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({booth})});
+  const d=await r.json();
+  if(d.ok)toast(`✅ ${booth} 배정 완료!`);
+  else toast('오류: '+(d.error||'알 수 없음'));
 }
 function renderFacSection(elId,facName,booths){
   const el=document.getElementById(elId);el.innerHTML='';
@@ -872,7 +929,7 @@ function renderFacSection(elId,facName,booths){
 }
 function renderOthers(){
   const el=document.getElementById('adm-others');el.innerHTML='';
-  ['포켓볼','보드게임'].forEach(fac=>{
+  ['보드게임'].forEach(fac=>{
     const active=state.records.filter(r=>r.facility===fac&&r.active);
     const row=document.createElement('div');row.className='fr';
     row.innerHTML=`<span class="fr-label">${fac}</span><span class="fr-status ${active.length?'busy':'ok'}">${active.length?'이용중 '+active.length+'명':'✓ 여유'}</span><span style="flex:1"></span>`;
@@ -1091,7 +1148,7 @@ async function renderRecTable(){
     if(recTab==='active')data=data.filter(r=>r.active);
     if(recTab==='ended')data=data.filter(r=>!r.active);
     if(recFilter!=='전체')data=data.filter(r=>r.facility===recFilter);
-    data.sort((a,b)=>a.id-b.id);
+    data.sort((a,b)=>b.id-a.id);
 
     if(!tb)return;tb.innerHTML='';
     const ec=document.getElementById('rec-empty');if(ec)ec.style.display=data.length?'none':'block';

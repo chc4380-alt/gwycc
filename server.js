@@ -46,11 +46,12 @@ async function getState(forceRefresh = false) {
   // SSE/실시간용: 오늘 날짜만 조회 (트래픽 절감 유지)
   const today = todayStr();
 
-  const [recRes, pcRes, pcQRes, kqRes, notRes, fsRes] = await Promise.all([
+  const [recRes, pcRes, pcQRes, kqRes, pqRes, notRes, fsRes] = await Promise.all([
     supabase.from('records').select('*').eq('date', today).order('id', { ascending: true }),
     supabase.from('pc_status').select('*').order('pc_key'),
     supabase.from('pc_queue').select('*').order('id', { ascending: true }),
     supabase.from('karaoke_queue').select('*').order('id', { ascending: true }),
+    supabase.from('pool_queue').select('*').order('id', { ascending: true }),
     supabase.from('notices').select('*').eq('active', true).order('id', { ascending: false }),
     supabase.from('facility_status').select('*'),
   ]);
@@ -69,12 +70,13 @@ async function getState(forceRefresh = false) {
 
   const pcQueue = (pcQRes.data || []).map(q => ({ id: q.id, name: q.name, phone: q.phone, time: q.time, grade: q.grade || '-' }));
   const karaokeQueue = (kqRes.data || []).map(q => ({ id: q.id, name: q.name, phone: q.phone, time: q.time, grade: q.grade || '-' }));
+  const poolQueue = (pqRes.data || []).map(q => ({ id: q.id, name: q.name, phone: q.phone, time: q.time, grade: q.grade || '-' }));
   const notices = (notRes.data || []).map(n => ({ id: n.id, title: n.title, content: n.content, createdAt: n.created_at }));
 
   const facilityStatus = {};
   (fsRes.data || []).forEach(f => { facilityStatus[f.id] = { inspection: f.inspection, msg: f.inspection_msg }; });
 
-  const result = { records, pcStatus, pcQueue, karaokeQueue, notices, facilityStatus, pcPowerStatus };
+  const result = { records, pcStatus, pcQueue, karaokeQueue, poolQueue, notices, facilityStatus, pcPowerStatus };
 
   stateCache = result;
   stateCacheTime = now;
@@ -353,6 +355,41 @@ app.post('/api/karaoke/queue-assign', async (req, res) => {
 app.post('/api/karaoke/queue-remove', async (req, res) => {
   const { id } = req.body;
   await supabase.from('karaoke_queue').delete().eq('id', id);
+  await refreshAndBroadcast();
+  res.json({ ok: true });
+});
+
+// ===================== API: 포켓볼 대기 =====================
+app.post('/api/pool/queue', async (req, res) => {
+  const { name, phone, grade } = req.body;
+  if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
+  await supabase.from('pool_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
+  const state = await refreshAndBroadcast('notify', { type: 'pool_queue', message: `포켓볼 대기 등록 — ${name} ${grade||''}` });
+  res.json({ ok: true, position: state.poolQueue.length });
+});
+
+app.post('/api/pool/queue-assign', async (req, res) => {
+  const { booth } = req.body;
+  if (!booth) return res.status(400).json({ error: 'booth 필요' });
+  const { data: queue } = await supabase.from('pool_queue').select('*').order('id').limit(1);
+  if (!queue?.length) return res.status(400).json({ error: '대기자 없음' });
+  const next = queue[0];
+  const t = nowStr();
+  await Promise.all([
+    supabase.from('pool_queue').delete().eq('id', next.id),
+    supabase.from('records').insert({
+      date: todayStr(), time: t, name: next.name, phone: next.phone,
+      facility: '포켓볼', booth, game: '-', active: true,
+      grade: next.grade || '-', gender: next.gender || '-', headcount: next.headcount || 1,
+    }),
+  ]);
+  await refreshAndBroadcast('notify', { type: 'queue_assign', message: `🎱 대기자 ${next.name} → 포켓볼 ${booth} 배정 완료` });
+  res.json({ ok: true });
+});
+
+app.post('/api/pool/queue-remove', async (req, res) => {
+  const { id } = req.body;
+  await supabase.from('pool_queue').delete().eq('id', id);
   await refreshAndBroadcast();
   res.json({ ok: true });
 });

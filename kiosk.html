@@ -395,6 +395,62 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
   </div>
 </div>
 
+<!-- 포켓볼 이용/대기 -->
+<div class="ov" id="ov-pool">
+  <div class="mbox">
+    <div class="mhd green"><h3>🎱 포켓볼 이용 · 대기</h3><button class="mcl" onclick="closeModal('ov-pool')">✕</button></div>
+    <div class="mbdy">
+      <div style="font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:8px;">🎱 다이 현황</div>
+      <div class="bchips" id="pool-status" style="margin-bottom:14px;"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:7px;">⏳ 대기 현황</div>
+      <div id="pool-queue-disp"></div>
+      <hr class="dv">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px;">이용 등록 / 대기 신청</div>
+      <div class="fg"><label class="fl">이름 <span class="req">*</span></label><input class="fi" id="pool-name" placeholder="이름을 입력해 주세요" maxlength="20" autocomplete="off"></div>
+      <div class="fg"><label class="fl">연락처 <span class="req">*</span></label><input class="fi" id="pool-phone" placeholder="010-0000-0000" maxlength="13" inputmode="tel" autocomplete="off"></div>
+      <div class="fg">
+        <label class="fl">성별 · 인원수 <span class="req">*</span></label>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:13px;font-weight:700;color:#1d6fb5;min-width:50px;">👦 남자</span>
+            <button class="hc-btn" onclick="changePoolGenderCount('male',-1)">－</button>
+            <div class="hc-num" id="pool-hc-male" style="color:#1d6fb5;">0</div>
+            <button class="hc-btn" onclick="changePoolGenderCount('male',1)">＋</button>
+            <span style="font-size:12px;color:var(--txt2);">명</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:13px;font-weight:700;color:#db2777;min-width:50px;">👧 여자</span>
+            <button class="hc-btn" onclick="changePoolGenderCount('female',-1)">－</button>
+            <div class="hc-num" id="pool-hc-female" style="color:#db2777;">0</div>
+            <button class="hc-btn" onclick="changePoolGenderCount('female',1)">＋</button>
+            <span style="font-size:12px;color:var(--txt2);">명</span>
+          </div>
+          <div style="font-size:12px;color:var(--txt2);padding:6px 10px;background:var(--bg2);border-radius:8px;">
+            총 <span id="pool-hc-total" style="font-weight:700;color:var(--g1);">0</span>명
+          </div>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">학년 <span class="req">*</span></label>
+        <div class="grade-row" id="pool-grade-school">
+          <div class="grade-chip infant" onclick="selectSchoolPool('유아')">🧒 유아</div>
+          <div class="grade-chip elem" onclick="selectSchoolPool('초등')">초등</div>
+          <div class="grade-chip mid" onclick="selectSchoolPool('중등')">중등</div>
+          <div class="grade-chip high" onclick="selectSchoolPool('고등')">고등</div>
+        </div>
+        <div class="grade-num-row" id="pool-grade-num" style="display:none;"></div>
+      </div>
+      <div class="fg">
+        <label class="fl">다이 선택 <span style="font-size:10px;color:var(--txt2)">(빈 자리만)</span></label>
+        <div class="bchips" id="pool-booth-chips"></div>
+      </div>
+      <button class="btn btn-g" onclick="submitPoolUse()">🎱 포켓볼 이용 등록</button>
+      <button class="btn btn-a" onclick="submitPoolQueue()">⏳ 대기 등록하기</button>
+      <button class="btn btn-gray" onclick="closeModal('ov-pool')">취소</button>
+    </div>
+  </div>
+</div>
+
 <!-- 이용기록부 -->
 <div class="ov" id="ov-rec">
   <div class="mbox wide">
@@ -510,13 +566,15 @@ const FACS=[
   {id:'board',name:'보드게임',emoji:'🎲',total:null,booths:null,type:'free'},
 ];
 
-let state={records:[],pcStatus:{},pcQueue:[],karaokeQueue:[],notices:[],facilityStatus:{}};
+let state={records:[],pcStatus:{},pcQueue:[],karaokeQueue:[],poolQueue:[],notices:[],facilityStatus:{}};
 let selBooth=null,curFac=null,recTab='all',recFilter='전체';
 let krSelBooth=null;
+let poolSelBooth=null;
 // 학년 상태
 let regGrade={school:'',num:''};
 let pcGrade={school:'',num:''};
 let krGrade={school:'',num:''};
+let poolGrade={school:'',num:''};
 // 성별 상태 (PC/코인노래방용 단일 선택)
 let regGender='',pcGender='',krGender='';
 // 인원수 (남녀 구분) — 일반 시설
@@ -524,6 +582,8 @@ let maleCount=0, femaleCount=0;
 let regHeadcount=1;
 // 인원수 (남녀 구분) — 코인노래방
 let krMaleCount=0, krFemaleCount=0;
+// 인원수 (남녀 구분) — 포켓볼
+let poolMaleCount=0, poolFemaleCount=0;
 
 // 남녀 인원수 변경 (일반)
 function changeGenderCount(type, delta){
@@ -558,6 +618,19 @@ function changeKrGenderCount(type, delta){
   else if(krFemaleCount>0&&krMaleCount===0) krGender='여';
   else if(krMaleCount>0&&krFemaleCount>0) krGender='혼성';
   else krGender='';
+}
+
+// 남녀 인원수 변경 (포켓볼)
+function changePoolGenderCount(type, delta){
+  if(type==='male'){
+    poolMaleCount=Math.max(0,Math.min(20,poolMaleCount+delta));
+    document.getElementById('pool-hc-male').textContent=poolMaleCount;
+  } else {
+    poolFemaleCount=Math.max(0,Math.min(20,poolFemaleCount+delta));
+    document.getElementById('pool-hc-female').textContent=poolFemaleCount;
+  }
+  const total=poolMaleCount+poolFemaleCount;
+  document.getElementById('pool-hc-total').textContent=total;
 }
 
 // ===================== 성별 선택 함수 =====================
@@ -623,6 +696,18 @@ function selectSchoolKR(school){
     makeGradeNums(school,'kr-grade-num',krGrade,'kr-grade-school');
   }
 }
+function selectSchoolPool(school){
+  poolGrade.school=school;poolGrade.num='';
+  const sr=document.getElementById('pool-grade-school');
+  sr.querySelectorAll('.grade-chip').forEach(c=>{c.classList.remove('sel');if(c.textContent.includes(school))c.classList.add('sel');});
+  if(school==='유아'){
+    document.getElementById('pool-grade-num').innerHTML='';
+    document.getElementById('pool-grade-num').style.display='none';
+    poolGrade.num='유아';
+  } else {
+    makeGradeNums(school,'pool-grade-num',poolGrade,'pool-grade-school');
+  }
+}
 function resetGrade(prefix,gradeObj){
   gradeObj.school='';gradeObj.num='';
   document.getElementById(prefix+'-grade-school').querySelectorAll('.grade-chip').forEach(c=>c.classList.remove('sel'));
@@ -663,6 +748,7 @@ function renderAll(){
   renderNoticeBanner();
   if(document.getElementById('ov-pc').classList.contains('open'))renderPCModal();
   if(document.getElementById('ov-karaoke').classList.contains('open'))renderKaraokeModal();
+  if(document.getElementById('ov-pool').classList.contains('open'))renderPoolModal();
   if(document.getElementById('ov-rec').classList.contains('open'))renderRecTable();
 }
 
@@ -739,6 +825,7 @@ function countFree(f){
 function openFac(f){
   if(f.type==='pc'){openPCModal();return;}
   if(f.type==='karaoke'){openKaraokeModal();return;}
+  if(f.id==='pool'){openPoolModal();return;}
   curFac=f; selBooth=null;
   document.getElementById('reg-title').textContent=f.emoji+' '+f.name+' 이용 등록';
   document.getElementById('reg-info').innerHTML=`<b>${f.name}</b> 이용을 위해 아래 정보를 입력해 주세요.`;
@@ -971,6 +1058,99 @@ async function submitKaraokeQueue(){
 async function cancelKaraokeQueue(id){
   if(!confirm('대기를 취소하시겠습니까?'))return;
   await api('/api/karaoke/queue-remove',{id});
+  toast('대기 취소 완료');
+}
+
+// ===================== 포켓볼 MODAL =====================
+function openPoolModal(){
+  poolSelBooth=null;
+  document.getElementById('pool-name').value='';
+  document.getElementById('pool-phone').value='';
+  resetGrade('pool',poolGrade);
+  poolMaleCount=0; poolFemaleCount=0;
+  document.getElementById('pool-hc-male').textContent='0';
+  document.getElementById('pool-hc-female').textContent='0';
+  document.getElementById('pool-hc-total').textContent='0';
+  renderPoolModal();
+  openModal('ov-pool');
+}
+function renderPoolModal(){
+  // 다이 현황
+  const statusEl=document.getElementById('pool-status');statusEl.innerHTML='';
+  const used=state.records.filter(r=>r.facility==='포켓볼'&&r.active).map(r=>r.booth);
+  ['1다이'].forEach(b=>{
+    const c=document.createElement('div');
+    c.className='bchip'+(used.includes(b)?' occ':'');
+    c.textContent=b+(used.includes(b)?' (이용중)':' (빈자리)');
+    c.style.cursor='default';
+    statusEl.appendChild(c);
+  });
+  // 대기 현황
+  const d=document.getElementById('pool-queue-disp'),q=state.poolQueue||[];
+  if(!q.length){d.innerHTML='<div style="font-size:11px;color:var(--txt2);padding:4px 0 10px;">대기 없음</div>';}
+  else{
+    d.innerHTML='';
+    q.forEach((x,i)=>{
+      const el=document.createElement('div');el.className='qi';
+      el.innerHTML=`<div class="qr">${i+1}</div><div style="flex:1"><div class="qn">${x.name}</div><div class="qm">${x.phone} · ${x.time}</div></div><button onclick="cancelPoolQueue(${x.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">취소</button>`;
+      d.appendChild(el);
+    });
+  }
+  // 다이 선택 chips
+  const g=document.getElementById('pool-booth-chips');g.innerHTML='';
+  const insp=(state.facilityStatus['pool']||{}).inspection;
+  if(used.includes('1다이')){
+    // 이용중 — 선택 불가
+  } else if(insp){
+    const c=document.createElement('div');c.className='bchip occ';c.textContent='1다이 (점검중)';
+    g.appendChild(c);
+  } else {
+    const c=document.createElement('div');c.className='bchip';c.textContent='1다이';
+    c.onclick=()=>{g.querySelectorAll('.bchip').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');poolSelBooth='1다이';};
+    g.appendChild(c);
+  }
+  if(g.children.length===0)g.innerHTML='<span style="font-size:12px;color:var(--red);">현재 빈 자리 없음</span>';
+}
+async function submitPoolUse(){
+  const name=document.getElementById('pool-name').value.trim(),phone=document.getElementById('pool-phone').value.trim();
+  if(!name){toast('이름을 입력해 주세요');return;}
+  if(!phone){toast('연락처를 입력해 주세요');return;}
+  if((poolMaleCount+poolFemaleCount)<1){toast('인원수를 입력해 주세요');return;}
+  if(!poolGrade.school){toast('학교급을 선택해 주세요');return;}
+  if(!poolGrade.num){toast('학년을 선택해 주세요');return;}
+  if(!poolSelBooth){toast('다이를 선택해 주세요');return;}
+  const grade=poolGrade.school+' '+poolGrade.num;
+  const genderInfo=(poolMaleCount>0&&poolFemaleCount>0)?`혼성(남${poolMaleCount}·여${poolFemaleCount})`:(poolMaleCount>0)?`남(${poolMaleCount}명)`:`여(${poolFemaleCount}명)`;
+  const total=poolMaleCount+poolFemaleCount;
+  try{const r=await api('/api/register',{name,phone,facility:'포켓볼',booth:poolSelBooth,game:'-',grade,gender:genderInfo,headcount:total});if(r.ok){closeModal('ov-pool');toast('✅ 포켓볼 등록 완료! ('+total+'명)');}}
+  catch(e){toast('서버 연결 오류');}
+}
+async function submitPoolQueue(){
+  const name=document.getElementById('pool-name').value.trim(),phone=document.getElementById('pool-phone').value.trim();
+  if(!name){toast('이름을 입력해 주세요');return;}
+  if(!phone){toast('연락처를 입력해 주세요');return;}
+  if((poolMaleCount+poolFemaleCount)<1){toast('인원수를 입력해 주세요');return;}
+  if(!poolGrade.school){toast('학교급을 선택해 주세요');return;}
+  if(!poolGrade.num){toast('학년을 선택해 주세요');return;}
+  const grade=poolGrade.school+' '+poolGrade.num;
+  const genderInfo=(poolMaleCount>0&&poolFemaleCount>0)?`혼성(남${poolMaleCount}·여${poolFemaleCount})`:(poolMaleCount>0)?`남(${poolMaleCount}명)`:`여(${poolFemaleCount}명)`;
+  const total=poolMaleCount+poolFemaleCount;
+  try{const r=await api('/api/pool/queue',{name,phone,grade,gender:genderInfo,headcount:total});
+    if(r.ok){
+      document.getElementById('pool-name').value='';
+      document.getElementById('pool-phone').value='';
+      resetGrade('pool',poolGrade);
+      poolMaleCount=0; poolFemaleCount=0;
+      document.getElementById('pool-hc-male').textContent='0';
+      document.getElementById('pool-hc-female').textContent='0';
+      document.getElementById('pool-hc-total').textContent='0';
+      toast('⏳ 포켓볼 대기 '+r.position+'번째 등록!');
+    }
+  }catch(e){toast('서버 연결 오류');}
+}
+async function cancelPoolQueue(id){
+  if(!confirm('대기를 취소하시겠습니까?'))return;
+  await api('/api/pool/queue-remove',{id});
   toast('대기 취소 완료');
 }
 
