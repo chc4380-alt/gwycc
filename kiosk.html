@@ -716,7 +716,7 @@ function resetGrade(prefix,gradeObj){
 
 window.onload=()=>{
   tickClock(); setInterval(tickClock,1000);
-  phoneMask('reg-phone'); phoneMask('pc-phone'); phoneMask('kr-phone');
+  phoneMask('reg-phone'); phoneMask('pc-phone'); phoneMask('kr-phone'); phoneMask('pool-phone');
   connectSSE();
   document.querySelectorAll('.ov').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id);}));
 };
