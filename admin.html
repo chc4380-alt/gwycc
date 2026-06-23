@@ -927,7 +927,8 @@ function renderFacSection(elId,facName,booths){
   booths.forEach(b=>{
     const used=state.records.find(r=>r.facility===facName&&r.booth===b&&r.active);
     const row=document.createElement('div');row.className='fr';
-    row.innerHTML=`<span class="fr-label">${b}</span><span class="fr-status ${used?'busy':'ok'}">${used?'● 이용중 ('+used.name+')':'✓ 비어있음'}</span><span style="flex:1"></span>`;
+    const gameTag=used&&used.game&&used.game!=='-'?` · 🎮 ${used.game}`:'';
+    row.innerHTML=`<span class="fr-label">${b}</span><span class="fr-status ${used?'busy':'ok'}">${used?'● 이용중 ('+used.name+')'+gameTag:'✓ 비어있음'}</span><span style="flex:1"></span>`;
     if(used){const btn=document.createElement('button');btn.className='btn-sm bs-r';btn.textContent='종료';btn.onclick=async()=>{await api('/api/end',{facility:facName,booth:b});toast(b+' 종료');};row.appendChild(btn);}
     el.appendChild(row);
   });
