@@ -722,9 +722,9 @@ function renderPCAdmin(){
     const d=document.createElement('div');
     d.className='pc-card '+(s.free?'free':'busy');
     let btns=s.free
-      ?`<button class="btn-sm bs-g" onclick="quickStartPC('${k}')">이용시작</button>`
-      :`<button class="btn-sm bs-r" onclick="quickEndPC('${k}')">이용종료</button>
-        ${(state.pcQueue||[]).length>0?`<button class="btn-sm bs-a" onclick="assignQueue('${k}')">대기배정</button>`:''}`;
+      ?`<button class="btn-sm bs-g" onclick="quickStartPC('${k}')">이용시작</button>
+        ${(state.pcQueue||[]).length>0?`<button class="btn-sm bs-a" onclick="assignQueue('${k}')">대기배정</button>`:''}`
+      :`<button class="btn-sm bs-r" onclick="quickEndPC('${k}')">이용종료</button>`;
     let bar=!s.free&&s.endMs?`<div class="pc-progress"><div class="pc-prog-bar" id="bar-${k}" style="width:100%"></div></div><div class="pc-end-t" id="remain-${k}">~${s.endTime}</div>`:'';
     d.innerHTML=`<div class="pc-num">${i}</div><div class="pc-status">${s.free?'✓ 빈자리':'● 이용중'}</div><div class="pc-user">${s.user||''}</div>${bar}<div class="pc-btns">${btns}</div>`;
     g.appendChild(d);
@@ -802,7 +802,12 @@ function renderAdminQueue(){
   const d=document.getElementById('admin-queue'),q=state.pcQueue||[];
   if(!q.length){d.innerHTML='<div style="font-size:12px;color:var(--txt2);padding:5px 0;">대기 없음</div>';return;}
   d.innerHTML='';
-  q.forEach((x,i)=>{const el=document.createElement('div');el.className='qi';el.innerHTML=`<div class="qrank">${i+1}</div><div style="flex:1"><div class="qname">${x.name}</div><div class="qmeta">${x.phone} · ${x.time}</div></div>`;d.appendChild(el);});
+  q.forEach((x,i)=>{const el=document.createElement('div');el.className='qi';el.innerHTML=`<div class="qrank">${i+1}</div><div style="flex:1"><div class="qname">${x.name}</div><div class="qmeta">${x.phone} · ${x.time}</div></div><button class="btn-sm bs-r" onclick="removePCQueue(${x.id})">취소</button>`;d.appendChild(el);});
+}
+async function removePCQueue(id){
+  if(!confirm('대기를 취소하시겠습니까?'))return;
+  await api('/api/pc/queue-cancel',{id});
+  toast('대기 취소');
 }
 
 // ===================== KARAOKE =====================
