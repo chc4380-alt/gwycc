@@ -779,7 +779,14 @@ function renderFacGrid(){
   const g=document.getElementById('fac-grid'); g.innerHTML='';
   FACS.forEach(f=>{
     const fs=state.facilityStatus[f.id]||{};
-    const isInsp=fs.inspection;
+    let isInsp=fs.inspection;
+    // 부스별 개별 점검을 쓰는 시설은 모든 부스가 점검일 때만 전체 점검중 표시
+    if(f.type==='karaoke'){
+      isInsp=f.booths.every((b,idx)=>(state.facilityStatus['karaoke'+(idx+1)]||{}).inspection);
+    }
+    if(f.type==='pc'){
+      isInsp=Array.from({length:f.total},(_, i)=>(state.facilityStatus['pc'+(i+1)]||{}).inspection).every(Boolean);
+    }
     const free=countFree(f);
     let ac,at;
     if(isInsp){ac='av-insp';at='점검중';}
