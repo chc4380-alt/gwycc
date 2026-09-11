@@ -739,7 +739,7 @@ async function fetchState(){
 function startPolling(){
   setInterval(()=>{
     fetch(`${SERVER}/api/state`).then(r=>r.json()).then(s=>{state=s;renderAll();setConn('ok','연결됨 ✓');}).catch(()=>setConn('err','재연결 중...'));
-  },30000);
+  },5000);
 }
 function setConn(t,m){document.getElementById('conn-dot').className='conn-dot conn-'+t;document.getElementById('conn-txt').textContent=m;}
 
