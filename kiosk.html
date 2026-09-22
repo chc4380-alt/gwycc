@@ -927,13 +927,23 @@ function renderPCBoothChips(){
   }
   if(!any&&g.children.length===0)g.innerHTML='<span style="font-size:12px;color:var(--red);">현재 빈 자리 없음</span>';
 }
+function getFirstFreePC(){
+  for(let i=1;i<=6;i++){
+    const k='PC'+i;
+    const insp=(state.facilityStatus['pc'+i]||{}).inspection;
+    if(state.pcStatus[k]&&state.pcStatus[k].free&&!insp)return k;
+  }
+  return null;
+}
 function renderPCQueue(){
   const d=document.getElementById('pc-queue-disp'),q=state.pcQueue||[];
   if(!q.length){d.innerHTML='<div style="font-size:11px;color:var(--txt2);padding:4px 0;">대기 없음</div>';return;}
   d.innerHTML='';
+  const freePC=getFirstFreePC();
   q.forEach((x,i)=>{
     const el=document.createElement('div');el.className='qi';
-    el.innerHTML=`<div class="qr">${i+1}</div><div style="flex:1"><div class="qn">${x.name}</div><div class="qm">${x.phone}${x.grade?' · '+x.grade:''} · ${x.time}</div></div><button onclick="cancelPCQueue(${x.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">취소</button>`;
+    const useBtn=(i===0&&freePC)?`<button onclick="useQueuePC()" style="background:#dcfce7;color:#16a34a;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px;">✅ 사용하기</button>`:'';
+    el.innerHTML=`<div class="qr">${i+1}</div><div style="flex:1"><div class="qn">${x.name}</div><div class="qm">${x.phone}${x.grade?' · '+x.grade:''} · ${x.time}</div></div>${useBtn}<button onclick="cancelPCQueue(${x.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">취소</button>`;
     d.appendChild(el);
   });
 }
@@ -941,6 +951,14 @@ async function cancelPCQueue(id){
   if(!confirm('대기를 취소하시겠습니까?'))return;
   await api('/api/pc/queue-cancel',{id});
   toast('대기 취소 완료');
+}
+async function useQueuePC(){
+  const freePC=getFirstFreePC();
+  if(!freePC){toast('현재 빈 PC가 없습니다');return;}
+  if(!confirm(freePC+'번 PC를 사용하시겠습니까?'))return;
+  const r=await api('/api/pc/queue-assign',{pcKey:freePC});
+  if(r.ok){toast('✅ '+freePC+' 이용 시작!');renderPCModal();}
+  else toast('배정 실패: '+(r.error||'다시 시도해 주세요'));
 }
 async function submitPCUse(){
   const name=document.getElementById('pc-name').value.trim(),phone=document.getElementById('pc-phone').value.trim();
