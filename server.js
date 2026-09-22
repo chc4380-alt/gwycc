@@ -19,11 +19,12 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.static(__dirname));
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, x-admin-pw');
   res.header('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
@@ -31,6 +32,59 @@ app.use((req, res, next) => {
 
 let pcTimers = {};
 let sseClients = [];
+
+// ===================== 관리자 인증 =====================
+// ⚠️ 배포 환경(Railway 등)에 ADMIN_PW 환경변수를 반드시 설정하세요.
+// 설정하지 않으면 기존 기본값('2230')으로 동작하되 콘솔에 경고를 출력합니다.
+const ADMIN_PW = process.env.ADMIN_PW || '2230';
+if (!process.env.ADMIN_PW) {
+  console.warn('[경고] ADMIN_PW 환경변수가 설정되지 않아 기본 비밀번호를 사용합니다. 배포 환경에서는 반드시 설정하세요.');
+}
+function requireAdmin(req, res, next) {
+  const pw = req.headers['x-admin-pw'];
+  if (pw !== ADMIN_PW) return res.status(401).json({ error: '관리자 인증 필요' });
+  next();
+}
+app.post('/api/admin/verify', (req, res) => {
+  const { pw } = req.body || {};
+  res.json({ ok: pw === ADMIN_PW });
+});
+
+// ===================== 입력 정제 (XSS/데이터 오염 방지) =====================
+function sanitizeText(v, maxLen = 60) {
+  if (typeof v !== 'string') return v;
+  return v.replace(/[<>&"']/g, '').trim().slice(0, maxLen);
+}
+
+// ===================== 간단한 요청 빈도 제한 =====================
+function getClientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) return xff.split(',')[0].trim();
+  return req.socket.remoteAddress;
+}
+const rateBuckets = new Map();
+function rateLimit({ windowMs = 60000, max = 20 } = {}) {
+  return (req, res, next) => {
+    const key = getClientIp(req);
+    const now = Date.now();
+    let bucket = rateBuckets.get(key);
+    if (!bucket || now - bucket.start > windowMs) {
+      bucket = { start: now, count: 0 };
+      rateBuckets.set(key, bucket);
+    }
+    bucket.count++;
+    if (bucket.count > max) {
+      return res.status(429).json({ error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' });
+    }
+    next();
+  };
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets) {
+    if (now - bucket.start > 5 * 60000) rateBuckets.delete(key);
+  }
+}, 5 * 60000);
 
 // ===================== getState 캐시 =====================
 let stateCache = null;
@@ -112,7 +166,7 @@ function broadcast(eventName, data) {
 }
 
 app.get('/events', async (req, res) => {
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const clientIp = getClientIp(req);
 
   const sameIpCount = sseClients.filter(c => c._clientIp === clientIp).length;
   if (sameIpCount >= 3) {
@@ -161,8 +215,8 @@ app.get('/api/state', async (req, res) => {
   try { res.json(await getState()); } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ===================== API: 이용기록 날짜 목록 =====================
-app.get('/api/records/dates', async (req, res) => {
+// ===================== API: 이용기록 날짜 목록 (관리자 전용: 개인정보 포함) =====================
+app.get('/api/records/dates', requireAdmin, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('records')
@@ -180,7 +234,8 @@ app.get('/api/records/dates', async (req, res) => {
 // ?date=전체  → 전체 기간
 // ?date=2026. 5. 13.  → 특정 날짜
 // (파라미터 없음)  → 오늘
-app.get('/api/records', async (req, res) => {
+// 관리자 전용: 이름/전화번호 등 개인정보가 포함되므로 인증 필요
+app.get('/api/records', requireAdmin, async (req, res) => {
   try {
     const { date } = req.query;
     let query = supabase.from('records').select('*').order('id', { ascending: false }).limit(10000);
@@ -253,9 +308,17 @@ async function endPC(pcKey, auto = false) {
 }
 
 // ===================== API: 일반 시설 등록 =====================
-app.post('/api/register', async (req, res) => {
-  const { name, phone, facility, booth, game, grade, gender, headcount } = req.body;
+app.post('/api/register', rateLimit(), async (req, res) => {
+  let { name, phone, facility, booth, game, grade, gender, headcount } = req.body;
   if (!name || !phone || !facility) return res.status(400).json({ error: '필수 항목 누락' });
+  name = sanitizeText(name, 30);
+  phone = formatPhone(sanitizeText(phone, 20));
+  facility = sanitizeText(facility, 20);
+  booth = sanitizeText(booth, 20);
+  game = sanitizeText(game, 30);
+  grade = sanitizeText(grade, 20);
+  gender = sanitizeText(gender, 20);
+  if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
   const { data, error } = await supabase.from('records').insert({
     date: todayStr(), time: nowStr(), name, phone, facility, booth: booth || '-',
     game: game || '-', active: true, grade: grade || '-', gender: gender || '-',
@@ -267,17 +330,23 @@ app.post('/api/register', async (req, res) => {
 });
 
 // ===================== API: PC 시작 =====================
-app.post('/api/pc/start', async (req, res) => {
-  const { name, phone, pcKey, grade, gender } = req.body;
+app.post('/api/pc/start', rateLimit(), async (req, res) => {
+  let { name, phone, pcKey, grade, gender } = req.body;
   if (!name || !phone || !pcKey) return res.status(400).json({ error: '필수 항목 누락' });
-  const { data: pc } = await supabase.from('pc_status').select('free').eq('pc_key', pcKey).single();
-  if (!pc?.free) return res.status(400).json({ error: '이미 사용 중' });
+  name = sanitizeText(name, 30);
+  phone = formatPhone(sanitizeText(phone, 20));
+  grade = sanitizeText(grade, 20);
+  gender = sanitizeText(gender, 20);
+  if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
   const t = nowStr(); const endMs = Date.now() + 60 * 60 * 1000;
   const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: KR_TZ, hour12: false });
-  await Promise.all([
-    supabase.from('pc_status').update({ free: false, user_name: name, phone, start_time: t, end_time: endTimeStr, end_ms: endMs }).eq('pc_key', pcKey),
-    supabase.from('records').insert({ date: todayStr(), time: t, name, phone, facility: 'PC', booth: pcKey, game: '-', active: true, grade: grade || '-', gender: gender || '-' }),
-  ]);
+  // free===true 조건을 걸어 원자적으로 선점 (동시 요청 시 중복 배정 방지)
+  const { data: claimed, error: claimErr } = await supabase.from('pc_status')
+    .update({ free: false, user_name: name, phone, start_time: t, end_time: endTimeStr, end_ms: endMs })
+    .eq('pc_key', pcKey).eq('free', true).select();
+  if (claimErr) return res.status(500).json({ error: claimErr.message });
+  if (!claimed || claimed.length === 0) return res.status(409).json({ error: '이미 사용 중' });
+  await supabase.from('records').insert({ date: todayStr(), time: t, name, phone, facility: 'PC', booth: pcKey, game: '-', active: true, grade: grade || '-', gender: gender || '-' });
   if (pcTimers[pcKey]) clearTimeout(pcTimers[pcKey]);
   pcTimers[pcKey] = setTimeout(() => endPC(pcKey, true), 60 * 60 * 1000);
   setPCCommand(pcKey, 'wakeup');
@@ -295,8 +364,10 @@ app.post('/api/pc/end', async (req, res) => {
 });
 
 // ===================== API: PC 대기 =====================
-app.post('/api/pc/queue', async (req, res) => {
-  const { name, phone, grade } = req.body;
+app.post('/api/pc/queue', rateLimit(), async (req, res) => {
+  let { name, phone, grade } = req.body;
+  if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
+  name = sanitizeText(name, 30); phone = formatPhone(sanitizeText(phone, 20)); grade = sanitizeText(grade, 20);
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
   await supabase.from('pc_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
   const state = await refreshAndBroadcast('notify', { type: 'queue', message: `PC 대기 등록 — ${name} ${grade||''}` });
@@ -315,13 +386,16 @@ app.post('/api/pc/queue-cancel', async (req, res) => {
 // ===================== API: PC 대기 → 빈자리 자동배정 =====================
 app.post('/api/pc/queue-assign', async (req, res) => {
   const { pcKey } = req.body;
+  if (!pcKey) return res.status(400).json({ error: 'pcKey 필요' });
   const { data: queue } = await supabase.from('pc_queue').select('*').order('id').limit(1);
   if (!queue?.length) return res.status(400).json({ error: '대기자 없음' });
   const next = queue[0];
+  // 대기열에서 원자적으로 제거(선점)되는지 확인 — 동시 배정 요청 시 중복 배정 방지
+  const { data: removed } = await supabase.from('pc_queue').delete().eq('id', next.id).select();
+  if (!removed || removed.length === 0) return res.status(409).json({ error: '이미 배정 처리된 대기자입니다' });
   const t = nowStr(); const endMs = Date.now() + 60 * 60 * 1000;
   const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: KR_TZ, hour12: false });
   await Promise.all([
-    supabase.from('pc_queue').delete().eq('id', next.id),
     supabase.from('pc_status').update({ free: false, user_name: next.name, phone: next.phone, start_time: t, end_time: endTimeStr, end_ms: endMs }).eq('pc_key', pcKey),
     supabase.from('records').insert({ date: todayStr(), time: t, name: next.name, phone: next.phone, facility: 'PC', booth: pcKey, game: '-', active: true, grade: next.grade||'-', gender: next.gender||'-' }),
   ]);
@@ -333,8 +407,10 @@ app.post('/api/pc/queue-assign', async (req, res) => {
 });
 
 // ===================== API: 코인노래방 대기 =====================
-app.post('/api/karaoke/queue', async (req, res) => {
-  const { name, phone, grade } = req.body;
+app.post('/api/karaoke/queue', rateLimit(), async (req, res) => {
+  let { name, phone, grade } = req.body;
+  if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
+  name = sanitizeText(name, 30); phone = formatPhone(sanitizeText(phone, 20)); grade = sanitizeText(grade, 20);
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
   await supabase.from('karaoke_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
   const state = await refreshAndBroadcast('notify', { type: 'karaoke_queue', message: `코인노래방 대기 — ${name} ${grade||''}` });
@@ -347,15 +423,14 @@ app.post('/api/karaoke/queue-assign', async (req, res) => {
   const { data: queue } = await supabase.from('karaoke_queue').select('*').order('id').limit(1);
   if (!queue?.length) return res.status(400).json({ error: '대기자 없음' });
   const next = queue[0];
+  const { data: removed } = await supabase.from('karaoke_queue').delete().eq('id', next.id).select();
+  if (!removed || removed.length === 0) return res.status(409).json({ error: '이미 배정 처리된 대기자입니다' });
   const t = nowStr();
-  await Promise.all([
-    supabase.from('karaoke_queue').delete().eq('id', next.id),
-    supabase.from('records').insert({
-      date: todayStr(), time: t, name: next.name, phone: next.phone,
-      facility: '코인노래방', booth, game: '-', active: true,
-      grade: next.grade || '-', gender: next.gender || '-', headcount: next.headcount || 1,
-    }),
-  ]);
+  await supabase.from('records').insert({
+    date: todayStr(), time: t, name: next.name, phone: next.phone,
+    facility: '코인노래방', booth, game: '-', active: true,
+    grade: next.grade || '-', gender: next.gender || '-', headcount: next.headcount || 1,
+  });
   await refreshAndBroadcast('notify', { type: 'queue_assign', message: `🎤 대기자 ${next.name} → 코인노래방 ${booth} 배정 완료` });
   res.json({ ok: true });
 });
@@ -368,10 +443,12 @@ app.post('/api/karaoke/queue-remove', async (req, res) => {
 });
 
 // ===================== API: 포켓볼 대기 =====================
-app.post('/api/pool/queue', async (req, res) => {
-  const { name, phone, grade } = req.body;
+app.post('/api/pool/queue', rateLimit(), async (req, res) => {
+  let { name, phone, grade } = req.body;
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
-  await supabase.from('pool_queue').insert({ name, phone: formatPhone(phone), time: nowStr(), grade: grade || '-' });
+  name = sanitizeText(name, 30); phone = formatPhone(sanitizeText(phone, 20)); grade = sanitizeText(grade, 20);
+  if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
+  await supabase.from('pool_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
   const state = await refreshAndBroadcast('notify', { type: 'pool_queue', message: `포켓볼 대기 등록 — ${name} ${grade||''}` });
   res.json({ ok: true, position: state.poolQueue.length });
 });
@@ -382,15 +459,14 @@ app.post('/api/pool/queue-assign', async (req, res) => {
   const { data: queue } = await supabase.from('pool_queue').select('*').order('id').limit(1);
   if (!queue?.length) return res.status(400).json({ error: '대기자 없음' });
   const next = queue[0];
+  const { data: removed } = await supabase.from('pool_queue').delete().eq('id', next.id).select();
+  if (!removed || removed.length === 0) return res.status(409).json({ error: '이미 배정 처리된 대기자입니다' });
   const t = nowStr();
-  await Promise.all([
-    supabase.from('pool_queue').delete().eq('id', next.id),
-    supabase.from('records').insert({
-      date: todayStr(), time: t, name: next.name, phone: formatPhone(next.phone),
-      facility: '포켓볼', booth, game: '-', active: true,
-      grade: next.grade || '-', gender: next.gender || '-', headcount: next.headcount || 1,
-    }),
-  ]);
+  await supabase.from('records').insert({
+    date: todayStr(), time: t, name: next.name, phone: formatPhone(next.phone),
+    facility: '포켓볼', booth, game: '-', active: true,
+    grade: next.grade || '-', gender: next.gender || '-', headcount: next.headcount || 1,
+  });
   await refreshAndBroadcast('notify', { type: 'queue_assign', message: `🎱 대기자 ${next.name} → 포켓볼 ${booth} 배정 완료` });
   res.json({ ok: true });
 });
@@ -483,7 +559,9 @@ app.get('/api/pc/commands', (req, res) => {
   res.json(commands);
 });
 
-app.post('/api/pc/wakeup', async (req, res) => {
+// 아래 두 엔드포인트는 관리자 화면의 수동 PC 켜기/끄기 버튼 전용입니다.
+// (세션 시작/종료 시 자동 켜기/끄기는 /api/pc/start, /api/pc/end 내부에서 별도로 처리되며 인증이 필요 없습니다)
+app.post('/api/pc/wakeup', requireAdmin, async (req, res) => {
   const { pcKey } = req.body;
   if (!PC_CONFIG[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
   setPCCommand(pcKey, 'wakeup');
@@ -491,7 +569,7 @@ app.post('/api/pc/wakeup', async (req, res) => {
   res.json({ ok: true, mac: PC_CONFIG[pcKey].mac });
 });
 
-app.post('/api/pc/shutdown', async (req, res) => {
+app.post('/api/pc/shutdown', requireAdmin, async (req, res) => {
   const { pcKey } = req.body;
   if (!PC_CONFIG[pcKey]) return res.status(400).json({ error: '잘못된 PC' });
   setPCCommand(pcKey, 'shutdown');
@@ -499,8 +577,8 @@ app.post('/api/pc/shutdown', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ===================== API: 기록 삭제 =====================
-app.delete('/api/record/:id', async (req, res) => {
+// ===================== API: 기록 삭제 (관리자 전용) =====================
+app.delete('/api/record/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   if (!id) return res.status(400).json({ error: 'id 필요' });
   const { error } = await supabase.from('records').delete().eq('id', id);
@@ -515,8 +593,10 @@ app.get('/api/notices', async (req, res) => {
   res.json(data || []);
 });
 
-app.post('/api/notices', async (req, res) => {
-  const { title, content } = req.body;
+app.post('/api/notices', requireAdmin, async (req, res) => {
+  let { title, content } = req.body;
+  if (!title || !content) return res.status(400).json({ error: '제목과 내용을 입력해주세요' });
+  title = sanitizeText(title, 60); content = sanitizeText(content, 500);
   if (!title || !content) return res.status(400).json({ error: '제목과 내용을 입력해주세요' });
   const { data, error } = await supabase.from('notices').insert({ title, content, active: true }).select().single();
   if (error) return res.status(500).json({ error: error.message });
@@ -524,16 +604,16 @@ app.post('/api/notices', async (req, res) => {
   res.json({ ok: true, notice: data });
 });
 
-app.delete('/api/notices/:id', async (req, res) => {
+app.delete('/api/notices/:id', requireAdmin, async (req, res) => {
   await supabase.from('notices').update({ active: false }).eq('id', req.params.id);
   await refreshAndBroadcast();
   res.json({ ok: true });
 });
 
-// ===================== API: 시설 점검 =====================
-app.post('/api/facility/inspection', async (req, res) => {
+// ===================== API: 시설 점검 (관리자 전용) =====================
+app.post('/api/facility/inspection', requireAdmin, async (req, res) => {
   const { id, inspection, msg } = req.body;
-  await supabase.from('facility_status').update({ inspection, inspection_msg: msg || '점검 중입니다' }).eq('id', id);
+  await supabase.from('facility_status').update({ inspection, inspection_msg: sanitizeText(msg, 100) || '점검 중입니다' }).eq('id', id);
   await refreshAndBroadcast('notify', { type: 'inspection', message: `${inspection ? '🔧 점검 시작' : '✅ 점검 완료'}: ${id}` });
   res.json({ ok: true });
 });

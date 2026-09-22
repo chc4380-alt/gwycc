@@ -311,20 +311,13 @@ async function doReturn() {
   try {
     let res;
     if (facility === 'PC') {
-      // PC 반납 시 자동 종료 명령 전송
-      await Promise.all([
-        fetch(SERVER + '/api/pc/end', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pcKey: booth })
-        }),
-        fetch(SERVER + '/api/pc/shutdown', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pcKey: booth })
-        })
-      ]);
-      res = { ok: true };
+      // /api/pc/end 내부에서 자동 종료(끄기 명령)까지 함께 처리됨 (중복 호출 불필요)
+      const r = await fetch(SERVER + '/api/pc/end', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pcKey: booth })
+      });
+      res = await r.json();
     } else {
       const r = await fetch(SERVER + '/api/end', {
         method: 'POST',

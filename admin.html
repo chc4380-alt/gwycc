@@ -497,8 +497,8 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
 <div class="toast" id="toast"></div>
 
 <script>
-const ADMIN_PW='2230';
 const SERVER='https://gwycc-production.up.railway.app';
+let adminPw='';
 
 let state={records:[],pcStatus:{},pcQueue:[],karaokeQueue:[],poolQueue:[],notices:[],facilityStatus:{}};
 let recTab='all',recFilter='전체';
@@ -536,20 +536,28 @@ window.onload=()=>{
   document.querySelectorAll('.ov').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');}));
 };
 
-function checkPw(){
+async function checkPw(){
   const v=document.getElementById('pw-in').value;
-  if(v===ADMIN_PW){
-    document.getElementById('pw-overlay').style.display='none';
-    document.getElementById('main-layout').style.display='grid';
-    initAdmin();
-  }else{
-    document.getElementById('pw-err').textContent='비밀번호가 틀렸습니다';
-    document.getElementById('pw-in').value='';
-    document.getElementById('pw-in').focus();
-    setTimeout(()=>document.getElementById('pw-err').textContent='',2000);
+  try{
+    const r=await fetch(`${SERVER}/api/admin/verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pw:v})});
+    const d=await r.json();
+    if(d.ok){
+      adminPw=v;
+      document.getElementById('pw-overlay').style.display='none';
+      document.getElementById('main-layout').style.display='grid';
+      initAdmin();
+    }else{
+      document.getElementById('pw-err').textContent='비밀번호가 틀렸습니다';
+      document.getElementById('pw-in').value='';
+      document.getElementById('pw-in').focus();
+      setTimeout(()=>document.getElementById('pw-err').textContent='',2000);
+    }
+  }catch(e){
+    document.getElementById('pw-err').textContent='서버 연결 오류';
   }
 }
 function logout(){
+  adminPw='';
   document.getElementById('pw-overlay').style.display='flex';
   document.getElementById('main-layout').style.display='none';
   document.getElementById('pw-in').value='';
@@ -1025,13 +1033,14 @@ async function addNotice(){
   const content=document.getElementById('notice-content').value.trim();
   if(!title){toast('제목을 입력해 주세요');return;}
   if(!content){toast('내용을 입력해 주세요');return;}
-  const r=await fetch(`${SERVER}/api/notices`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content})});
+  const r=await fetch(`${SERVER}/api/notices`,{method:'POST',headers:{'Content-Type':'application/json','x-admin-pw':adminPw},body:JSON.stringify({title,content})});
   const d=await r.json();
   if(d.ok){document.getElementById('notice-title').value='';document.getElementById('notice-content').value='';toast('📢 공지사항 등록 완료!');}
+  else toast('등록 실패: '+(d.error||''));
 }
 async function deleteNotice(id){
   if(!confirm('공지사항을 삭제하시겠습니까?'))return;
-  await fetch(`${SERVER}/api/notices/${id}`,{method:'DELETE'});
+  await fetch(`${SERVER}/api/notices/${id}`,{method:'DELETE',headers:{'x-admin-pw':adminPw}});
   toast('공지사항 삭제');
 }
 
@@ -1070,7 +1079,7 @@ async function populateDateFilter(){
   if(!msel)return;
   const cur=msel.value||'전체';
   try{
-    const r=await fetch(`${SERVER}/api/records/dates`);
+    const r=await fetch(`${SERVER}/api/records/dates`,{headers:{'x-admin-pw':adminPw}});
     const d=await r.json();
     const dates=d.dates||[];
     // 날짜에서 월 추출: "2026. 6. 9." → "2026년 6월"
@@ -1099,7 +1108,7 @@ async function onMonthChange(){
   }
   // 해당 월의 날짜 목록 가져오기
   try{
-    const r=await fetch(`${SERVER}/api/records/dates`);
+    const r=await fetch(`${SERVER}/api/records/dates`,{headers:{'x-admin-pw':adminPw}});
     const d=await r.json();
     const allDates=d.dates||[];
     const mm=month.match(/(\d+)년 (\d+)월/);
@@ -1145,7 +1154,7 @@ async function renderRecTable(){
   if(tb)tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:20px;color:#9ca3af;">불러오는 중...</td></tr>';
 
   try{
-    const r=await fetch(`${SERVER}/api/records?date=${encodeURIComponent(apiDate)}`);
+    const r=await fetch(`${SERVER}/api/records?date=${encodeURIComponent(apiDate)}`,{headers:{'x-admin-pw':adminPw}});
     const d=await r.json();
     let data=d.records||[];
 
@@ -1175,7 +1184,7 @@ async function renderRecTable(){
 async function deleteRecord(id){
   if(!confirm('이 기록을 삭제하시겠습니까?'))return;
   try{
-    const r=await fetch(`${SERVER}/api/record/${id}`,{method:'DELETE'});
+    const r=await fetch(`${SERVER}/api/record/${id}`,{method:'DELETE',headers:{'x-admin-pw':adminPw}});
     const d=await r.json();
     if(d.ok){toast('🗑️ 기록 삭제 완료');renderRecTable();}
     else toast('삭제 실패: '+d.error);
@@ -1230,11 +1239,16 @@ function doPrint(){
   </head><body>${content}</body></html>`);
   w.document.close();w.focus();setTimeout(()=>w.print(),800);
 }
+function csvCell(v){
+  let s=String(v==null?'':v);
+  if(/^[=+\-@\t\r]/.test(s))s="'"+s;
+  return `"${s.replace(/"/g,'""')}"`;
+}
 function downloadCSV(){
   const data=window._lastFilteredRecords||[];
   const hdr=['순번','날짜·시간','이름','성별','연락처','학년','시설','부스/번호','게임명','상태'];
   const rows=data.map((r,i)=>[i+1,`${r.date} ${fmtTime(r.time)}`,r.name,r.gender||'-',r.phone,r.grade||'-',r.facility,r.booth,r.game,r.active?'이용중':'종료']);
-  const csv='\uFEFF'+[hdr,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const csv='\uFEFF'+[hdr,...rows].map(r=>r.map(csvCell).join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
   a.download=`들락날락_이용기록_${todayStr().replace(/\./g,'')}.csv`;
@@ -1276,7 +1290,7 @@ function closeOv(id){document.getElementById(id).classList.remove('open');}
 
 // ===================== HELPERS =====================
 async function api(path,body){
-  const r=await fetch(SERVER+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const r=await fetch(SERVER+path,{method:'POST',headers:{'Content-Type':'application/json','x-admin-pw':adminPw},body:JSON.stringify(body)});
   return r.json();
 }
 function phoneMask(id){

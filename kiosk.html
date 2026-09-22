@@ -556,7 +556,6 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
 
 <script>
 const SERVER='https://gwycc-production.up.railway.app';
-const ADMIN_PW='2230';
 const FACS=[
   {id:'karaoke',name:'코인노래방',emoji:'🎤',total:2,booths:['1번 부스','2번 부스'],type:'karaoke'},
   {id:'nintendo',name:'닌텐도',emoji:'🕹️',total:5,booths:['1번','2번','3번','4번','5번'],type:'booth',needGame:true},
@@ -1329,17 +1328,23 @@ function openNotices(){
 
 // ===================== ADMIN =====================
 function openAdmin(){openModal('ov-pw');setTimeout(()=>document.getElementById('pw-input').focus(),300);}
-function checkPw(){
+async function checkPw(){
   const v=document.getElementById('pw-input').value;
-  if(v===ADMIN_PW){
-    document.getElementById('pw-err').style.display='none';
-    document.getElementById('pw-input').value='';
-    closeModal('ov-pw');
-    window.location.href=`${SERVER}/admin.html`;
-  }else{
+  try{
+    const r=await fetch(`${SERVER}/api/admin/verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pw:v})});
+    const d=await r.json();
+    if(d.ok){
+      document.getElementById('pw-err').style.display='none';
+      document.getElementById('pw-input').value='';
+      closeModal('ov-pw');
+      window.location.href=`${SERVER}/admin.html`;
+    }else{
+      document.getElementById('pw-err').style.display='block';
+      document.getElementById('pw-input').value='';
+      document.getElementById('pw-input').focus();
+    }
+  }catch(e){
     document.getElementById('pw-err').style.display='block';
-    document.getElementById('pw-input').value='';
-    document.getElementById('pw-input').focus();
   }
 }
 
