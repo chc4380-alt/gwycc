@@ -528,14 +528,42 @@ const PC_CONFIG = {
 };
 
 let pcCommands = {};
+let lastShutdownAt = {};
+let pendingWakeTimers = {};
+// 종료 명령 후 최소 이 시간(ms)이 지나야 켜기 명령을 실제로 내보냄
+// (PC가 완전히 꺼지기 전에 매직 패킷이 도착하면 씹힐 수 있어 안전 지연을 둠)
+const WAKE_SAFETY_DELAY_MS = 15000;
 
-function setPCCommand(pcKey, cmd) {
+function registerCommand(pcKey, cmd) {
   pcCommands[pcKey] = {
     command: cmd,
     retryLeft: 5,
     expireAt: Date.now() + 30000
   };
   console.log(`[명령 등록] ${pcKey}: ${cmd} (5회 재시도, 30초 유효)`);
+}
+
+function setPCCommand(pcKey, cmd) {
+  if (cmd === 'shutdown') {
+    lastShutdownAt[pcKey] = Date.now();
+    if (pendingWakeTimers[pcKey]) { clearTimeout(pendingWakeTimers[pcKey]); delete pendingWakeTimers[pcKey]; }
+    registerCommand(pcKey, 'shutdown');
+    return;
+  }
+  if (cmd === 'wakeup') {
+    const sinceShutdown = Date.now() - (lastShutdownAt[pcKey] || 0);
+    if (sinceShutdown < WAKE_SAFETY_DELAY_MS) {
+      const wait = WAKE_SAFETY_DELAY_MS - sinceShutdown;
+      if (pendingWakeTimers[pcKey]) clearTimeout(pendingWakeTimers[pcKey]);
+      console.log(`[켜기 지연] ${pcKey}: 방금 종료 명령 전송됨 — ${Math.ceil(wait / 1000)}초 후 켜기 명령 등록`);
+      pendingWakeTimers[pcKey] = setTimeout(() => {
+        delete pendingWakeTimers[pcKey];
+        registerCommand(pcKey, 'wakeup');
+      }, wait);
+      return;
+    }
+  }
+  registerCommand(pcKey, cmd);
 }
 
 app.get('/api/pc/command/:pcKey', (req, res) => {
