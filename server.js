@@ -215,13 +215,31 @@ app.get('/api/state', async (req, res) => {
   try { res.json(await getState()); } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ===================== Supabase 페이지 조회 =====================
+// Supabase(PostgREST)는 요청 1회당 최대 1000행만 반환하므로 range로 나눠 끝까지 가져온다.
+// buildQuery는 매번 새 쿼리를 만들어야 하며, 고유 컬럼(id)으로 정렬되어 있어야 페이지가 겹치지 않는다.
+const PAGE_SIZE = 1000;
+async function fetchAllRows(buildQuery, max = Infinity) {
+  const rows = [];
+  while (rows.length < max) {
+    const from = rows.length;
+    const to = Math.min(from + PAGE_SIZE, max) - 1;
+    const { data, error } = await buildQuery().range(from, to);
+    if (error) return { data: null, error };
+    rows.push(...(data || []));
+    if (!data || data.length < to - from + 1) break;
+  }
+  return { data: rows, error: null };
+}
+
 // ===================== API: 이용기록 날짜 목록 (관리자 전용: 개인정보 포함) =====================
 app.get('/api/records/dates', requireAdmin, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('records')
-      .select('date')
-      .order('date', { ascending: false });
+    // date는 "2026. 9. 30." 형식의 문자열이라 date로 정렬하면 "2026. 9." 가 "2026. 10." 보다 앞에 옴.
+    // Supabase는 한 번에 최대 1000행만 반환하므로, id 순으로 끝까지 페이지 조회해야 최근 달이 누락되지 않음.
+    const { data, error } = await fetchAllRows(() =>
+      supabase.from('records').select('date').order('id', { ascending: false })
+    );
     if (error) return res.status(500).json({ error: error.message });
     const dates = [...new Set((data || []).map(r => r.date))];
     res.json({ dates });
@@ -238,25 +256,29 @@ app.get('/api/records/dates', requireAdmin, async (req, res) => {
 app.get('/api/records', requireAdmin, async (req, res) => {
   try {
     const { date } = req.query;
-    let query = supabase.from('records').select('*').order('id', { ascending: false }).limit(10000);
+    const buildQuery = () => {
+      let query = supabase.from('records').select('*').order('id', { ascending: false });
 
-    if (!date || date === '오늘') {
-      // 오늘만
-      query = query.eq('date', todayStr());
-    } else if (date.startsWith('월:')) {
-      // 월별 필터: "월:2026년 6월" → "2026. 6." 포함하는 날짜
-      const m = date.match(/(\d+)년\s*(\d+)월/);
-      if (m) {
-        const prefix = `${m[1]}. ${parseInt(m[2])}.`; // "2026. 6."
-        query = query.like('date', `${prefix}%`);
+      if (!date || date === '오늘') {
+        // 오늘만
+        query = query.eq('date', todayStr());
+      } else if (date.startsWith('월:')) {
+        // 월별 필터: "월:2026년 6월" → "2026. 6." 포함하는 날짜
+        const m = date.match(/(\d+)년\s*(\d+)월/);
+        if (m) {
+          const prefix = `${m[1]}. ${parseInt(m[2])}.`; // "2026. 6."
+          query = query.like('date', `${prefix}%`);
+        }
+      } else if (date !== '전체') {
+        // 특정 날짜
+        query = query.eq('date', date);
       }
-    } else if (date !== '전체') {
-      // 특정 날짜
-      query = query.eq('date', date);
-    }
-    // date === '전체' 이면 필터 없이 전체 조회
+      // date === '전체' 이면 필터 없이 전체 조회
+      return query;
+    };
 
-    const { data, error } = await query;
+    // .limit(10000)만으로는 Supabase 1000행 제한에 걸리므로 페이지 단위로 최대 10000건 조회
+    const { data, error } = await fetchAllRows(buildQuery, 10000);
     if (error) return res.status(500).json({ error: error.message });
 
     const records = (data || []).map(r => ({
