@@ -277,6 +277,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
       <button class="nav-btn" onclick="goPage('inspection',this)"><span class="ni">🔧</span> 시설 점검</button>
       <button class="nav-btn" onclick="goPage('notices',this)"><span class="ni">📢</span> 공지사항</button>
       <button class="nav-btn" onclick="goPage('records',this)"><span class="ni">📋</span> 이용기록부</button>
+      <button class="nav-btn" onclick="goPage('stats',this)"><span class="ni">📊</span> 통계</button>
       <button class="nav-btn" onclick="goPage('notif',this)"><span class="ni">🔔</span> 알림 로그 <span class="nb-badge" id="notif-badge"></span></button>
     </nav>
     <div class="sb-foot">
@@ -426,6 +427,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
           <div class="print-row">
             <button class="btn" style="background:#b45309;color:white;" onclick="printRecords()">🖨️ 인쇄/PDF</button>
             <button class="btn" style="background:var(--blue);color:white;" onclick="downloadCSV()">⬇️ CSV</button>
+            <button class="btn" style="background:#7c3aed;color:white;" onclick="printByBoothFull()">📅 일자별 부스별 전체 인쇄</button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
             <span style="font-size:12px;font-weight:600;color:var(--txt2);">📅 조회:</span>
@@ -460,6 +462,13 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:12px 0;}
             </table>
           </div>
           <div id="rec-empty" style="text-align:center;padding:24px;font-size:12px;color:var(--txt2);display:none;">📭 기록 없음</div>
+        </div>
+      </div>
+
+      <!-- 통계 -->
+      <div class="page" id="page-stats">
+        <div class="sec-card">
+          <div id="stats-body" style="text-align:center;padding:20px;color:var(--txt2);">불러오는 중...</div>
         </div>
       </div>
 
@@ -752,9 +761,9 @@ function updateTimers(){
     rem.textContent=`남은: ${Math.floor(diff/60000)}분 ${Math.floor((diff%60000)/1000)}초`;
   }
 }
-async function quickStartPC(k){const name=prompt(`${k} 이용자:`);if(!name)return;const phone=prompt('연락처:')||'-';await api('/api/pc/start',{name,phone,pcKey:k});toast(`✅ ${k} 시작: ${name}`);}
+async function quickStartPC(k){const name=prompt(`${k} 이용자:`);if(!name)return;const phone=prompt('연락처:')||'-';const r=await api('/api/pc/start',{name,phone,pcKey:k});if(r.ok)toast(`✅ ${k} 시작: ${name}`);else toast('시작 실패: '+(r.error||'오류'));}
 async function quickEndPC(k){if(!confirm(`${k} 종료?`))return;await api('/api/pc/end',{pcKey:k});toast(`${k} 종료`);}
-async function assignQueue(k){if(!confirm(`대기 1순위 → ${k} 배정?`))return;await api('/api/pc/queue-assign',{pcKey:k});toast('배정 완료');}
+async function assignQueue(k){if(!confirm(`대기 1순위 → ${k} 배정?`))return;const r=await api('/api/pc/queue-assign',{pcKey:k});if(r.ok)toast('배정 완료');else toast('배정 실패: '+(r.error||'오류'));}
 async function wakeupPC(k){
   if(!confirm(`${k} PC를 켜시겠습니까?\n(에이전트가 실행 중이어야 합니다)`))return;
   const r=await api('/api/pc/wakeup',{pcKey:k});
@@ -1226,6 +1235,66 @@ function printRecords(){
   document.getElementById('print-preview').innerHTML=html;
   document.getElementById('ov-print').classList.add('open');
 }
+async function printByBoothFull(){
+  const dateVal=document.getElementById('date-filter')?.value;
+  const targetDate=(dateVal&&dateVal!=='전체')?dateVal:todayStr();
+  let data;
+  try{
+    const r=await fetch(`${SERVER}/api/records?date=${encodeURIComponent(targetDate)}`,{headers:{'x-admin-pw':adminPw}});
+    const d=await r.json();
+    data=(d.records||[]).slice().sort((a,b)=>a.id-b.id);
+  }catch(e){toast('조회 실패');return;}
+  if(!data.length){toast('해당 날짜에 기록이 없습니다');return;}
+  const groups={};
+  data.forEach(rec=>{
+    if(!groups[rec.facility])groups[rec.facility]={};
+    const b=rec.booth||'-';
+    if(!groups[rec.facility][b])groups[rec.facility][b]=[];
+    groups[rec.facility][b].push(rec);
+  });
+  const facOrder=['PC','코인노래방','닌텐도','오락기','포켓볼','보드게임'];
+  const facilities=Object.keys(groups).sort((a,b)=>{
+    const ia=facOrder.indexOf(a),ib=facOrder.indexOf(b);
+    return (ia<0?999:ia)-(ib<0?999:ib);
+  });
+  let body='';
+  facilities.forEach(fac=>{
+    const booths=Object.keys(groups[fac]).sort((a,b)=>a.localeCompare(b,'ko'));
+    const total=booths.reduce((s,b)=>s+groups[fac][b].length,0);
+    body+=`<div style="margin-top:16px;">
+      <div style="background:#1a6b3c;color:white;padding:6px 10px;font-weight:900;font-size:13px;border-radius:6px 6px 0 0;">${fac} (총 ${total}건)</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead><tr>
+          <th style="background:#e8f5ee;padding:5px 8px;border:1px solid #d1d5db;width:12%">부스</th>
+          <th style="background:#e8f5ee;padding:5px 8px;border:1px solid #d1d5db;width:12%">시간</th>
+          <th style="background:#e8f5ee;padding:5px 8px;border:1px solid #d1d5db;width:14%">이름</th>
+          <th style="background:#e8f5ee;padding:5px 8px;border:1px solid #d1d5db;width:8%">성별</th>
+          <th style="background:#e8f5ee;padding:5px 8px;border:1px solid #d1d5db;width:14%">연락처</th>
+          <th style="background:#e8f5ee;padding:5px 8px;border:1px solid #d1d5db;width:12%">학년</th>
+          <th style="background:#e8f5ee;padding:5px 8px;border:1px solid #d1d5db;">게임/상태</th>
+        </tr></thead><tbody>`;
+    booths.forEach(b=>{
+      groups[fac][b].forEach(rec=>{
+        const gd=rec.gender==='남'?'남':rec.gender==='여'?'여':rec.gender||'-';
+        body+=`<tr><td style="padding:4px 8px;border:1px solid #e5e7eb;text-align:center;font-weight:700">${b}</td><td style="padding:4px 8px;border:1px solid #e5e7eb;">${fmtTime(rec.time)}</td><td style="padding:4px 8px;border:1px solid #e5e7eb;font-weight:600">${rec.name}</td><td style="padding:4px 8px;border:1px solid #e5e7eb;text-align:center">${gd}</td><td style="padding:4px 8px;border:1px solid #e5e7eb;">${rec.phone}</td><td style="padding:4px 8px;border:1px solid #e5e7eb;">${rec.grade||'-'}</td><td style="padding:4px 8px;border:1px solid #e5e7eb;">${rec.game!=='-'?rec.game:''}${rec.active?' · 이용중':' · 종료'}</td></tr>`;
+      });
+    });
+    body+=`</tbody></table></div>`;
+  });
+  const html=`<div style="font-family:'Noto Sans KR','Malgun Gothic',sans-serif;padding:16px;">
+    <div style="text-align:center;border-bottom:3px double #1a6b3c;padding-bottom:12px;margin-bottom:8px;">
+      <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">광양시청소년문화센터</div>
+      <div style="font-size:20px;font-weight:900;color:#1a6b3c;">들락날락 일자별 전체 이용 기록부</div>
+      <div style="font-size:12px;color:#6b7280;margin-top:4px;">${targetDate} · 총 ${data.length}건</div>
+    </div>
+    ${body}
+    <div style="margin-top:14px;text-align:center;font-size:10px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:6px;">
+      광양시청소년문화센터 청소년놀이공간 들락날락 · 본 기록은 시설 이용 증빙자료입니다
+    </div>
+  </div>`;
+  document.getElementById('print-preview').innerHTML=html;
+  document.getElementById('ov-print').classList.add('open');
+}
 function doPrint(){
   const content=document.getElementById('print-preview').innerHTML;
   const w=window.open('','_blank','width=900,height=700');
@@ -1285,6 +1354,104 @@ function goPage(id,btn){
   if(id==='notif'){newNotifCount=0;document.getElementById('notif-badge').style.display='none';}
   // 이용기록부 탭 진입 시 날짜 목록 + 데이터 로드
   if(id==='records'){populateDateFilter().then(()=>renderRecTable());}
+  if(id==='stats'){loadStats();}
+}
+
+// ===================== 통계 =====================
+async function loadStats(){
+  const body=document.getElementById('stats-body');
+  body.innerHTML='<div style="text-align:center;padding:20px;color:var(--txt2);">불러오는 중...</div>';
+  let data;
+  try{
+    const r=await fetch(`${SERVER}/api/records?date=전체`,{headers:{'x-admin-pw':adminPw}});
+    const d=await r.json();
+    data=d.records||[];
+  }catch(e){
+    body.innerHTML='<div style="text-align:center;padding:20px;color:var(--red);">데이터 로드 실패</div>';
+    return;
+  }
+  renderStats(data);
+}
+function statBar(label,count,max,color){
+  const pct=max?Math.round(count/max*100):0;
+  return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+    <div style="width:90px;font-size:11px;color:var(--txt2);flex-shrink:0;">${label}</div>
+    <div style="flex:1;background:var(--bg2);border-radius:6px;overflow:hidden;height:16px;">
+      <div style="width:${pct}%;background:${color||'var(--g2)'};height:100%;"></div>
+    </div>
+    <div style="width:40px;text-align:right;font-size:11px;font-weight:700;color:var(--g1);flex-shrink:0;">${count}</div>
+  </div>`;
+}
+function renderHourChart(hours){
+  const max=Math.max(1,...hours);
+  let bars='';
+  for(let h=0;h<24;h++){
+    const pct=Math.round(hours[h]/max*100);
+    bars+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:90px;">
+      <div style="font-size:8px;color:var(--txt2);margin-bottom:2px;">${hours[h]||''}</div>
+      <div style="width:70%;background:var(--g2);border-radius:2px 2px 0 0;height:${pct}%;min-height:${hours[h]>0?'2px':'0'};"></div>
+      <div style="font-size:8px;color:var(--txt2);margin-top:2px;">${h%3===0?h+'시':''}</div>
+    </div>`;
+  }
+  return `<div style="display:flex;align-items:flex-end;gap:2px;height:110px;padding:0 4px;">${bars}</div>`;
+}
+function renderStats(data){
+  const body=document.getElementById('stats-body');
+  if(!data.length){body.innerHTML='<div style="text-align:center;padding:20px;color:var(--txt2);">데이터 없음</div>';return;}
+
+  const facCount={};
+  data.forEach(r=>{facCount[r.facility]=(facCount[r.facility]||0)+1;});
+  const facMax=Math.max(...Object.values(facCount));
+  const facHtml=Object.entries(facCount).sort((a,b)=>b[1]-a[1]).map(([f,c])=>statBar(f,c,facMax)).join('');
+
+  const hours=new Array(24).fill(0);
+  data.forEach(r=>{const h=parseInt((r.time||'0').split(':')[0]);if(!isNaN(h)&&h>=0&&h<24)hours[h]++;});
+
+  const genderCount={남:0,여:0,혼성:0,기타:0};
+  data.forEach(r=>{
+    const g=r.gender||'';
+    const has남=g.includes('남'),has여=g.includes('여');
+    if(has남&&has여)genderCount.혼성++;
+    else if(has남)genderCount.남++;
+    else if(has여)genderCount.여++;
+    else genderCount.기타++;
+  });
+  const genderMax=Math.max(...Object.values(genderCount));
+  const genderHtml=Object.entries(genderCount).filter(([,c])=>c>0).map(([g,c])=>statBar(g,c,genderMax,g==='남'?'#3b82f6':g==='여'?'#ec4899':g==='혼성'?'#a78bfa':'#9ca3af')).join('');
+
+  const gradeCount={};
+  data.forEach(r=>{
+    const key=(r.grade||'기타').split(' ')[0]||'기타';
+    gradeCount[key]=(gradeCount[key]||0)+1;
+  });
+  const gradeOrder=['유아','초등','중등','고등'];
+  const gradeKeys=Object.keys(gradeCount).sort((a,b)=>{
+    const ia=gradeOrder.indexOf(a),ib=gradeOrder.indexOf(b);
+    return (ia<0?999:ia)-(ib<0?999:ib);
+  });
+  const gradeMax=Math.max(...Object.values(gradeCount));
+  const gradeHtml=gradeKeys.map(g=>statBar(g,gradeCount[g],gradeMax,'#f59e0b')).join('');
+
+  body.innerHTML=`
+    <div style="margin-bottom:22px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">🏆 시설별 이용 건수 (전체 기간 · 총 ${data.length}건)</div>
+      ${facHtml}
+    </div>
+    <div style="margin-bottom:22px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">⏰ 시간대별 이용 분포</div>
+      ${renderHourChart(hours)}
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;">⚧ 성별 분포</div>
+        ${genderHtml}
+      </div>
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;">🎓 학년대 분포</div>
+        ${gradeHtml}
+      </div>
+    </div>
+  `;
 }
 function closeOv(id){document.getElementById(id).classList.remove('open');}
 

@@ -893,6 +893,7 @@ async function submitReg(){
   try{
     const r=await api('/api/register',{name,phone,facility:curFac.name,booth:selBooth||'-',game:gameVal,grade,gender:genderInfo,headcount:totalCount});
     if(r.ok){closeModal('ov-reg');toast('✅ '+curFac.name+' 이용 등록 완료! ('+totalCount+'명)');}
+    else toast('등록 실패: '+(r.error||'다시 시도해 주세요'));
   }catch(e){toast('서버 연결 오류');}
 }
 
@@ -969,7 +970,7 @@ async function submitPCUse(){
   if(!pcGrade.num){toast('학년을 선택해 주세요');return;}
   if(!selBooth){toast('PC 번호를 선택해 주세요');return;}
   const grade=pcGrade.school+' '+pcGrade.num;
-  try{const r=await api('/api/pc/start',{name,phone,pcKey:selBooth,grade,gender:pcGender});if(r.ok){closeModal('ov-pc');toast('✅ '+selBooth+' 등록 완료! (1시간 후 자동 종료)');}}
+  try{const r=await api('/api/pc/start',{name,phone,pcKey:selBooth,grade,gender:pcGender});if(r.ok){closeModal('ov-pc');toast('✅ '+selBooth+' 등록 완료! (1시간 후 자동 종료)');}else toast('등록 실패: '+(r.error||'다시 시도해 주세요'));}
   catch(e){toast('서버 연결 오류');}
 }
 async function submitPCQueue(){
@@ -980,7 +981,7 @@ async function submitPCQueue(){
   if(!pcGrade.school){toast('학교급을 선택해 주세요');return;}
   if(!pcGrade.num){toast('학년을 선택해 주세요');return;}
   const grade=pcGrade.school+' '+pcGrade.num;
-  try{const r=await api('/api/pc/queue',{name,phone,grade,gender:pcGender});if(r.ok){document.getElementById('pc-name').value='';document.getElementById('pc-phone').value='';resetGrade('pc',pcGrade);pcGender='';document.getElementById('pc-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));toast('⏳ 대기 '+r.position+'번째 등록 완료!');}}
+  try{const r=await api('/api/pc/queue',{name,phone,grade,gender:pcGender});if(r.ok){document.getElementById('pc-name').value='';document.getElementById('pc-phone').value='';resetGrade('pc',pcGrade);pcGender='';document.getElementById('pc-gender-row').querySelectorAll('.gender-chip').forEach(c=>c.classList.remove('sel'));toast('⏳ 대기 '+r.position+'번째 등록 완료!');}else toast('대기 등록 실패: '+(r.error||'다시 시도해 주세요'));}
   catch(e){toast('서버 연결 오류');}
 }
 
@@ -1052,7 +1053,7 @@ async function submitKaraokeUse(){
   const grade=krGrade.school+' '+krGrade.num;
   const genderInfo=(krMaleCount>0&&krFemaleCount>0)?`혼성(남${krMaleCount}·여${krFemaleCount})`:(krMaleCount>0)?`남(${krMaleCount}명)`:`여(${krFemaleCount}명)`;
   const total=krMaleCount+krFemaleCount;
-  try{const r=await api('/api/register',{name,phone,facility:'코인노래방',booth:krSelBooth,game:'-',grade,gender:genderInfo,headcount:total});if(r.ok){closeModal('ov-karaoke');toast('✅ 코인노래방 '+krSelBooth+' 등록 완료! ('+total+'명)');}}
+  try{const r=await api('/api/register',{name,phone,facility:'코인노래방',booth:krSelBooth,game:'-',grade,gender:genderInfo,headcount:total});if(r.ok){closeModal('ov-karaoke');toast('✅ 코인노래방 '+krSelBooth+' 등록 완료! ('+total+'명)');}else toast('등록 실패: '+(r.error||'다시 시도해 주세요'));}
   catch(e){toast('서버 연결 오류');}
 }
 async function submitKaraokeQueue(){
@@ -1075,7 +1076,7 @@ async function submitKaraokeQueue(){
       document.getElementById('kr-hc-female').textContent='0';
       document.getElementById('kr-hc-total').textContent='0';
       toast('⏳ 코인노래방 대기 '+r.position+'번째 등록!');
-    }
+    } else toast('대기 등록 실패: '+(r.error||'다시 시도해 주세요'));
   }catch(e){toast('서버 연결 오류');}
 }
 
@@ -1146,7 +1147,7 @@ async function submitPoolUse(){
   const grade=poolGrade.school+' '+poolGrade.num;
   const genderInfo=(poolMaleCount>0&&poolFemaleCount>0)?`혼성(남${poolMaleCount}·여${poolFemaleCount})`:(poolMaleCount>0)?`남(${poolMaleCount}명)`:`여(${poolFemaleCount}명)`;
   const total=poolMaleCount+poolFemaleCount;
-  try{const r=await api('/api/register',{name,phone,facility:'포켓볼',booth:poolSelBooth,game:'-',grade,gender:genderInfo,headcount:total});if(r.ok){closeModal('ov-pool');toast('✅ 포켓볼 등록 완료! ('+total+'명)');}}
+  try{const r=await api('/api/register',{name,phone,facility:'포켓볼',booth:poolSelBooth,game:'-',grade,gender:genderInfo,headcount:total});if(r.ok){closeModal('ov-pool');toast('✅ 포켓볼 등록 완료! ('+total+'명)');}else toast('등록 실패: '+(r.error||'다시 시도해 주세요'));}
   catch(e){toast('서버 연결 오류');}
 }
 async function submitPoolQueue(){
@@ -1169,7 +1170,7 @@ async function submitPoolQueue(){
       document.getElementById('pool-hc-female').textContent='0';
       document.getElementById('pool-hc-total').textContent='0';
       toast('⏳ 포켓볼 대기 '+r.position+'번째 등록!');
-    }
+    } else toast('대기 등록 실패: '+(r.error||'다시 시도해 주세요'));
   }catch(e){toast('서버 연결 오류');}
 }
 async function cancelPoolQueue(id){

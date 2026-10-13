@@ -151,6 +151,17 @@ function formatPhone(phone) {
   return phone;
 }
 
+// ===================== 중복 등록 방지 / PC 일일 이용 제한 =====================
+async function hasActiveUsage(phone) {
+  const { data } = await supabase.from('records').select('id').eq('phone', phone).eq('active', true).limit(1);
+  return !!(data && data.length);
+}
+const PC_DAILY_LIMIT = 3;
+async function pcUsesToday(phone) {
+  const { data } = await supabase.from('records').select('id').eq('facility', 'PC').eq('phone', phone).eq('date', todayStr());
+  return (data || []).length;
+}
+
 const KR_TZ = 'Asia/Seoul';
 function nowStr() {
   return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: KR_TZ, hour12: false });
@@ -207,7 +218,41 @@ async function refreshAndBroadcast(eventName, extraData) {
   if (eventName && extraData) {
     broadcast(eventName, extraData);
   }
+  checkPcQueueExpiry(state);
   return state;
+}
+
+// ===================== PC 대기 자동 만료 =====================
+// 대기 1순위에게 빈 PC가 생기면 5분을 주고, 그 안에 "사용하기"로 선점하지 않으면 자동으로 대기 취소
+const PC_QUEUE_CLAIM_MS = 5 * 60 * 1000;
+let pcQueueTimer = null;
+let pcQueueTimerFor = null;
+function pcHasFreeSeat(state) {
+  for (let i = 1; i <= 6; i++) {
+    const k = 'PC' + i;
+    const insp = (state.facilityStatus['pc' + i] || {}).inspection;
+    if (state.pcStatus[k] && state.pcStatus[k].free && !insp) return true;
+  }
+  return false;
+}
+function checkPcQueueExpiry(state) {
+  const front = (state.pcQueue || [])[0];
+  const hasFree = pcHasFreeSeat(state);
+  if (!front || !hasFree) {
+    if (pcQueueTimer) { clearTimeout(pcQueueTimer); pcQueueTimer = null; pcQueueTimerFor = null; }
+    return;
+  }
+  if (pcQueueTimerFor === front.id) return; // 이미 이 사람 기준으로 타이머가 돌고 있음 — 리셋하지 않음
+  if (pcQueueTimer) clearTimeout(pcQueueTimer);
+  pcQueueTimerFor = front.id;
+  console.log(`[대기 만료 타이머] ${front.name} (id:${front.id}) — ${PC_QUEUE_CLAIM_MS / 60000}분 내 미응답 시 자동 취소`);
+  pcQueueTimer = setTimeout(async () => {
+    pcQueueTimer = null; pcQueueTimerFor = null;
+    const { data: removed } = await supabase.from('pc_queue').delete().eq('id', front.id).select();
+    if (removed && removed.length) {
+      await refreshAndBroadcast('notify', { type: 'queue_expired', message: `⏰ ${front.name}님 대기가 시간 초과로 자동 취소되었습니다` });
+    }
+  }, PC_QUEUE_CLAIM_MS);
 }
 
 // ===================== API: 상태 (실시간/오늘) =====================
@@ -319,6 +364,7 @@ app.post('/api/register', rateLimit(), async (req, res) => {
   grade = sanitizeText(grade, 20);
   gender = sanitizeText(gender, 20);
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
+  if (await hasActiveUsage(phone)) return res.status(409).json({ error: '이미 다른 시설을 이용 중입니다' });
   const { data, error } = await supabase.from('records').insert({
     date: todayStr(), time: nowStr(), name, phone, facility, booth: booth || '-',
     game: game || '-', active: true, grade: grade || '-', gender: gender || '-',
@@ -338,6 +384,8 @@ app.post('/api/pc/start', rateLimit(), async (req, res) => {
   grade = sanitizeText(grade, 20);
   gender = sanitizeText(gender, 20);
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
+  if (await hasActiveUsage(phone)) return res.status(409).json({ error: '이미 다른 시설을 이용 중입니다' });
+  if ((await pcUsesToday(phone)) >= PC_DAILY_LIMIT) return res.status(403).json({ error: `오늘 PC 이용 횟수(${PC_DAILY_LIMIT}회)를 모두 사용하셨습니다` });
   const t = nowStr(); const endMs = Date.now() + 60 * 60 * 1000;
   const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: KR_TZ, hour12: false });
   // free===true 조건을 걸어 원자적으로 선점 (동시 요청 시 중복 배정 방지)
@@ -369,6 +417,8 @@ app.post('/api/pc/queue', rateLimit(), async (req, res) => {
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
   name = sanitizeText(name, 30); phone = formatPhone(sanitizeText(phone, 20)); grade = sanitizeText(grade, 20);
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
+  if (await hasActiveUsage(phone)) return res.status(409).json({ error: '이미 다른 시설을 이용 중입니다' });
+  if ((await pcUsesToday(phone)) >= PC_DAILY_LIMIT) return res.status(403).json({ error: `오늘 PC 이용 횟수(${PC_DAILY_LIMIT}회)를 모두 사용하셨습니다` });
   await supabase.from('pc_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
   const state = await refreshAndBroadcast('notify', { type: 'queue', message: `PC 대기 등록 — ${name} ${grade||''}` });
   res.json({ ok: true, position: state.pcQueue.length });
@@ -387,12 +437,22 @@ app.post('/api/pc/queue-cancel', async (req, res) => {
 app.post('/api/pc/queue-assign', async (req, res) => {
   const { pcKey } = req.body;
   if (!pcKey) return res.status(400).json({ error: 'pcKey 필요' });
-  const { data: queue } = await supabase.from('pc_queue').select('*').order('id').limit(1);
-  if (!queue?.length) return res.status(400).json({ error: '대기자 없음' });
-  const next = queue[0];
-  // 대기열에서 원자적으로 제거(선점)되는지 확인 — 동시 배정 요청 시 중복 배정 방지
-  const { data: removed } = await supabase.from('pc_queue').delete().eq('id', next.id).select();
-  if (!removed || removed.length === 0) return res.status(409).json({ error: '이미 배정 처리된 대기자입니다' });
+  let next = null;
+  for (let i = 0; i < 50 && !next; i++) {
+    const { data: queue } = await supabase.from('pc_queue').select('*').order('id').limit(1);
+    if (!queue?.length) return res.status(400).json({ error: '대기자 없음' });
+    const candidate = queue[0];
+    // 이미 다른 시설 이용 중이거나 오늘 PC 이용 횟수를 다 쓴 대기자는 건너뛰고(취소) 다음 사람 확인
+    const blocked = (await hasActiveUsage(candidate.phone)) || (await pcUsesToday(candidate.phone)) >= PC_DAILY_LIMIT;
+    const { data: removed } = await supabase.from('pc_queue').delete().eq('id', candidate.id).select();
+    if (!removed || removed.length === 0) continue; // 다른 요청이 먼저 가져감
+    if (blocked) {
+      await refreshAndBroadcast('notify', { type: 'queue_expired', message: `⚠️ ${candidate.name}님은 이용 제한으로 대기가 취소되었습니다` });
+      continue;
+    }
+    next = candidate;
+  }
+  if (!next) return res.status(400).json({ error: '배정 가능한 대기자 없음' });
   const t = nowStr(); const endMs = Date.now() + 60 * 60 * 1000;
   const endTimeStr = new Date(endMs).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: KR_TZ, hour12: false });
   await Promise.all([
@@ -412,6 +472,7 @@ app.post('/api/karaoke/queue', rateLimit(), async (req, res) => {
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
   name = sanitizeText(name, 30); phone = formatPhone(sanitizeText(phone, 20)); grade = sanitizeText(grade, 20);
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
+  if (await hasActiveUsage(phone)) return res.status(409).json({ error: '이미 다른 시설을 이용 중입니다' });
   await supabase.from('karaoke_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
   const state = await refreshAndBroadcast('notify', { type: 'karaoke_queue', message: `코인노래방 대기 — ${name} ${grade||''}` });
   res.json({ ok: true, position: state.karaokeQueue.length });
@@ -448,6 +509,7 @@ app.post('/api/pool/queue', rateLimit(), async (req, res) => {
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
   name = sanitizeText(name, 30); phone = formatPhone(sanitizeText(phone, 20)); grade = sanitizeText(grade, 20);
   if (!name || !phone) return res.status(400).json({ error: '필수 항목 누락' });
+  if (await hasActiveUsage(phone)) return res.status(409).json({ error: '이미 다른 시설을 이용 중입니다' });
   await supabase.from('pool_queue').insert({ name, phone, time: nowStr(), grade: grade || '-' });
   const state = await refreshAndBroadcast('notify', { type: 'pool_queue', message: `포켓볼 대기 등록 — ${name} ${grade||''}` });
   res.json({ ok: true, position: state.poolQueue.length });
@@ -655,5 +717,6 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log('  [v3.2] /api/records?date= 엔드포인트 추가 (전체 날짜 조회)');
   console.log('========================================');
   await restoreTimers();
+  checkPcQueueExpiry(await getState(true));
   console.log('  [DB] Supabase 연결 완료');
 });
