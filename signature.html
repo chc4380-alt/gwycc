@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>들락날락 — 서명부</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
+  onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';document.head.appendChild(s);"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --g1:#1a6b3c;--g2:#2d9d5c;--g3:#e8f5ee;--g4:#f0faf4;
+  --acc:#f59e0b;--acc2:#fef3c7;
+  --red:#dc2626;--red2:#fef2f2;
+  --blue:#1d6fb5;--blue2:#eff6ff;
+  --pur:#7c3aed;
+  --txt:#111827;--txt2:#6b7280;
+  --bg:#ffffff;--bg2:#f9fafb;--bg3:#f3f4f6;
+  --bd:#e5e7eb;--r:12px;--rs:8px;
+  --sh:0 2px 12px rgba(0,0,0,.08);
+}
+body{font-family:'Noto Sans KR',sans-serif;background:#f3f4f6;color:var(--txt);min-height:100vh;}
+
+/* HEADER */
+.hdr{background:#1f2937;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+.brand{font-family:'Black Han Sans',sans-serif;font-size:18px;letter-spacing:2px;}
+.brand-sub{font-size:10px;color:#9ca3af;}
+.hdr-sel{display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap;}
+.hdr select{padding:6px 10px;border-radius:6px;border:1px solid #4b5563;background:#374151;color:#fff;font-size:12px;font-family:inherit;max-width:240px;}
+
+/* LAYOUT */
+.wrap{display:grid;grid-template-columns:340px 1fr;gap:14px;padding:14px 20px;align-items:start;}
+@media(max-width:960px){.wrap{grid-template-columns:1fr;}}
+.sec-card{background:#fff;border-radius:var(--r);padding:16px;margin-bottom:14px;box-shadow:var(--sh);}
+.sec-title{font-size:11px;font-weight:700;color:var(--txt2);letter-spacing:.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.hint{font-size:11px;color:var(--txt2);line-height:1.5;margin-bottom:10px;}
+
+/* FORM */
+.fg{margin-bottom:10px;}
+.fl{font-size:11px;font-weight:600;color:var(--txt2);display:block;margin-bottom:4px;}
+.fi{width:100%;padding:7px 10px;border:1.5px solid var(--bd);border-radius:var(--rs);font-size:13px;background:var(--bg);color:var(--txt);font-family:inherit;transition:border .14s;}
+.fi:focus{outline:none;border-color:var(--g1);}
+.fi.sm{padding:5px 7px;font-size:12px;}
+select.fi{padding:6px 8px;}
+
+/* BUTTONS */
+.btn-sm{padding:5px 9px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:all .12s;white-space:nowrap;}
+.bs-g{background:var(--g1);color:#fff;}.bs-g:hover{background:#145a30;}
+.bs-r{background:var(--red);color:#fff;}.bs-r:hover{background:#b91c1c;}
+.bs-a{background:var(--acc);color:#fff;}.bs-a:hover{background:#d97706;}
+.bs-b{background:var(--blue);color:#fff;}.bs-b:hover{background:#155e9e;}
+.bs-p{background:var(--pur);color:#fff;}
+.bs-gray{background:#e5e7eb;color:var(--txt);}.bs-gray:hover{background:#d1d5db;}
+.bs-dark{background:#374151;color:#fff;}.bs-dark:hover{background:#4b5563;}
+.bs-x{background:#fee2e2;color:var(--red);}
+.btn-row{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;}
+.btn-row .btn-sm{padding:8px 14px;font-size:12px;}
+
+/* EDITOR LISTS */
+.ed-item{display:grid;gap:5px;align-items:center;padding:6px;border:1px solid var(--bd);border-radius:8px;margin-bottom:5px;background:var(--bg2);}
+.ed-info{grid-template-columns:90px 1fr auto;}
+.ed-col{grid-template-columns:1fr 78px 46px auto;}
+.ed-ops{display:flex;gap:2px;}
+.ed-ops button{width:24px;height:24px;border:none;border-radius:5px;background:#e5e7eb;cursor:pointer;font-size:11px;font-family:inherit;}
+.ed-ops button:hover{background:#d1d5db;}
+.ed-ops button.del{background:#fee2e2;color:var(--red);}
+
+/* ENTRY */
+.entry-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:10px;}
+.chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt2);cursor:pointer;}
+
+/* TABLE */
+.twrap{overflow-x:auto;}
+.stbl{width:100%;border-collapse:collapse;font-size:12px;min-width:560px;}
+.stbl th{background:var(--g3);color:var(--g1);padding:7px 6px;text-align:center;font-weight:700;font-size:11px;border-bottom:2px solid #86efac;white-space:nowrap;}
+.stbl td{padding:4px 5px;border-bottom:1px solid var(--bd);vertical-align:middle;}
+.stbl tr:hover td{background:var(--g4);}
+.stbl td.no{text-align:center;font-weight:700;color:var(--g1);width:42px;}
+.stbl td input{width:100%;padding:5px 6px;border:1px solid transparent;border-radius:5px;font-size:12px;font-family:inherit;background:transparent;color:var(--txt);}
+.stbl td input:hover{border-color:var(--bd);background:#fff;}
+.stbl td input:focus{outline:none;border-color:var(--g1);background:#fff;}
+.sign-cell{display:flex;align-items:center;gap:4px;justify-content:center;min-width:110px;}
+.sign-img{height:34px;max-width:120px;border:1px solid var(--bd);border-radius:4px;background:#fff;cursor:pointer;}
+.sign-btn{padding:5px 10px;border:1.5px dashed #86efac;background:var(--g4);color:var(--g1);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;}
+.sign-btn:hover{background:var(--g3);}
+.row-ops{display:flex;gap:2px;justify-content:center;}
+.row-ops button{border:none;border-radius:5px;padding:3px 6px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:#e5e7eb;}
+.row-ops button.del{background:#fee2e2;color:var(--red);}
+.empty{text-align:center;padding:26px;font-size:12px;color:var(--txt2);}
+.stat-line{font-size:11px;color:var(--txt2);margin-left:auto;}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center;padding:14px;}
+.ov.open{display:flex;}
+.mbox{background:var(--bg);border-radius:14px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3);animation:mIn .2s ease;}
+.mbox.wide{max-width:760px;}
+@keyframes mIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+.mhd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;color:#fff;background:#1f2937;}
+.mhd.amber{background:#b45309;}
+.mhd.green{background:var(--g1);}
+.mhd h3{font-size:15px;font-weight:700;}
+.mcl{background:rgba(255,255,255,.2);border:none;color:#fff;width:26px;height:26px;border-radius:50%;font-size:14px;cursor:pointer;}
+.mbdy{padding:18px;}
+.pad-wrap{border:2px dashed #86efac;border-radius:10px;background:#fff;position:relative;touch-action:none;}
+.pad-wrap canvas{display:block;width:100%;height:220px;cursor:crosshair;touch-action:none;}
+.pad-guide{position:absolute;left:16px;right:16px;bottom:44px;border-bottom:1px solid #d1d5db;pointer-events:none;}
+.pad-who{font-size:14px;font-weight:700;margin-bottom:8px;color:var(--g1);}
+.opt-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;right:20px;background:#1f2937;color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:all .25s;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.3);max-width:320px;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div>
+    <div class="brand">✍️ 들락날락 서명부</div>
+    <div class="brand-sub">광양시청소년문화센터</div>
+  </div>
+  <div class="hdr-sel">
+    <select id="sheet-sel" onchange="switchSheet(this.value)"></select>
+    <button class="btn-sm bs-g" onclick="newSheet()">＋ 새 서명부</button>
+    <button class="btn-sm bs-dark" onclick="copySheet()">복제</button>
+    <button class="btn-sm bs-r" onclick="deleteSheet()">삭제</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- 왼쪽: 양식 설정 -->
+  <aside>
+    <div class="sec-card">
+      <div class="sec-title">📄 기본 정보</div>
+      <div class="fg"><label class="fl">서명부 제목</label><input class="fi" id="f-title" oninput="setField('title',this.value)"></div>
+      <div class="fg"><label class="fl">기관명 (제목 위)</label><input class="fi" id="f-org" oninput="setField('org',this.value)"></div>
+      <div class="fg"><label class="fl">하단 문구</label><input class="fi" id="f-footer" oninput="setField('footer',this.value)"></div>
+      <div class="fg">
+        <label class="fl">양식 불러오기</label>
+        <select class="fi" id="preset-sel" onchange="applyPreset(this.value);this.value=''">
+          <option value="">— 기본 양식 선택 —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sec-card">
+      <div class="sec-title">🗂️ 상단 구분 항목 <button class="btn-sm bs-g" onclick="addInfo()">＋ 항목</button></div>
+      <div class="hint">제목 아래 표시되는 구분 칸이에요. (예: 행사명, 일시, 장소, 담당자)</div>
+      <div id="info-editor"></div>
+    </div>
+
+    <div class="sec-card">
+      <div class="sec-title">📐 명단 열 구성 <button class="btn-sm bs-g" onclick="addColumn()">＋ 열</button></div>
+      <div class="hint">열 이름·종류·너비(비율)를 바꿀 수 있어요. 종류가 <b>서명</b>인 열은 화면에서 직접 서명하거나 인쇄 후 자필 서명합니다.</div>
+      <div id="col-editor"></div>
+    </div>
+  </aside>
+
+  <!-- 오른쪽: 입력 + 명단 -->
+  <main>
+    <div class="sec-card">
+      <div class="btn-row">
+        <button class="btn-sm" style="background:#b45309;color:#fff;" onclick="openPrint()">🖨️ 인쇄/PDF</button>
+        <button class="btn-sm bs-b" onclick="pickExcel('new')">📥 엑셀로 새 서명부</button>
+        <button class="btn-sm bs-p" onclick="pickExcel('append')">➕ 엑셀 명단 추가</button>
+        <button class="btn-sm bs-g" onclick="exportExcel()">⬇️ 엑셀 내보내기</button>
+        <button class="btn-sm bs-gray" onclick="downloadTemplate()">📄 현재 양식 엑셀 다운로드</button>
+        <a class="btn-sm bs-gray" style="text-decoration:none;display:inline-block;" href="%EC%84%9C%EB%AA%85%EB%B6%80_%EC%96%91%EC%8B%9D.xlsx" download="서명부_양식.xlsx">📎 기본 엑셀 양식</a>
+        <input type="file" id="xl-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onExcelFile(this)">
+      </div>
+      <div class="sec-title">✏️ 명단 입력</div>
+      <div class="entry-grid" id="entry-grid"></div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <button class="btn-sm bs-g" style="padding:8px 18px;font-size:12px;" onclick="addRowFromEntry()">＋ 명단에 추가 (Enter)</button>
+        <label class="chk" id="sign-after-wrap"><input type="checkbox" id="sign-after"> 추가 후 바로 서명 받기</label>
+      </div>
+    </div>
+
+    <div class="sec-card">
+      <div class="sec-title">
+        <span>📋 서명 명단</span>
+        <span class="stat-line" id="stat-line"></span>
+        <button class="btn-sm bs-x" onclick="clearRows()">명단 비우기</button>
+      </div>
+      <div class="twrap">
+        <table class="stbl">
+          <thead id="list-head"></thead>
+          <tbody id="list-body"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="list-empty" style="display:none;">📭 아직 명단이 없어요. 위에서 직접 입력하거나 엑셀 파일을 불러오세요.</div>
+    </div>
+  </main>
+</div>
+
+<!-- 서명 패드 -->
+<div class="ov" id="ov-sign">
+  <div class="mbox wide">
+    <div class="mhd green"><h3>✍️ 서명</h3><button class="mcl" onclick="closeSign()">✕</button></div>
+    <div class="mbdy">
+      <div class="pad-who" id="pad-who"></div>
+      <div class="pad-wrap"><canvas id="pad"></canvas><div class="pad-guide"></div></div>
+      <div style="display:flex;gap:7px;margin-top:12px;justify-content:flex-end;">
+        <button class="btn-sm bs-gray" style="padding:8px 16px;font-size:12px;" onclick="clearPad()">지우기</button>
+        <button class="btn-sm bs-x" style="padding:8px 16px;font-size:12px;" id="pad-remove" onclick="removeSign()">서명 삭제</button>
+        <button class="btn-sm bs-g" style="padding:8px 20px;font-size:12px;" onclick="saveSign()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 인쇄 미리보기 -->
+<div class="ov" id="ov-print">
+  <div class="mbox wide">
+    <div class="mhd amber"><h3>🖨️ 인쇄 미리보기</h3><button class="mcl" onclick="closeOv('ov-print')">✕</button></div>
+    <div class="mbdy">
+      <div class="opt-row">
+        <label>최소 줄 수 <input class="fi sm" type="number" id="p-min" min="0" max="300" style="width:70px;display:inline-block;" oninput="renderPrintPreview()"></label>
+        <label>줄 높이(mm) <input class="fi sm" type="number" id="p-h" min="6" max="25" style="width:64px;display:inline-block;" oninput="renderPrintPreview()"></label>
+        <label class="chk"><input type="checkbox" id="p-land" onchange="renderPrintPreview()"> 가로 방향</label>
+        <span style="color:var(--txt2);font-size:11px;">빈 줄은 인쇄 후 현장에서 자필 서명용으로 쓰여요.</span>
+      </div>
+      <div style="display:flex;gap:7px;margin-bottom:12px;">
+        <button class="btn-sm bs-a" onclick="doPrint()" style="padding:8px 16px;font-size:12px;">🖨️ 인쇄 실행</button>
+        <button class="btn-sm bs-gray" onclick="closeOv('ov-print')" style="padding:8px 16px;font-size:12px;">닫기</button>
+      </div>
+      <div id="print-preview" style="max-height:60vh;overflow-y:auto;border:1px solid var(--bd);border-radius:8px;padding:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===================== 기본 양식 =====================
+const ORG_DEFAULT='광양시청소년문화센터';
+const FOOTER_DEFAULT='광양시청소년문화센터 청소년놀이공간 들락날락';
+const PRESETS={
+  '기본 서명부':{
+    info:['행사명','일시','장소','담당자'],
+    columns:[['순번','no',6],['이름','text',14],['소속(학교)','text',20],['학년','text',8],['연락처','text',18],['서명','sign',16]]
+  },
+  '프로그램 참가자 서명부':{
+    info:['프로그램명','운영일시','장소','강사','담당자'],
+    columns:[['순번','no',6],['이름','text',14],['학교','text',18],['학년','text',8],['성별','text',7],['연락처','text',18],['서명','sign',16]]
+  },
+  '교육 참석자 서명부':{
+    info:['교육명','교육일시','교육장소','강사'],
+    columns:[['순번','no',6],['소속','text',20],['직위','text',12],['이름','text',14],['연락처','text',18],['서명','sign',16]]
+  },
+  '물품 수령 서명부':{
+    info:['수령 물품','지급일','지급 장소','담당자'],
+    columns:[['순번','no',6],['이름','text',14],['소속','text',18],['수량','text',8],['수령일','text',12],['서명','sign',16]]
+  },
+  '자원봉사 확인 서명부':{
+    info:['활동명','활동일','활동장소','담당자'],
+    columns:[['순번','no',6],['이름','text',14],['학교','text',18],['학년','text',8],['시작시간','text',10],['종료시간','text',10],['서명','sign',14]]
+  }
+};
+const TYPE_LABEL={no:'순번',text:'텍스트',sign:'서명'};
+const STORE_KEY='dn_signature_sheets_v1';
+
+// ===================== 상태 =====================
+let store={sheets:[],currentId:null};
+let signTarget=null; // {rowId,colId}
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function todayStr(){return new Date().toLocaleDateString('ko-KR');}
+
+function makeSheet(presetName,title){
+  const p=PRESETS[presetName]||PRESETS['기본 서명부'];
+  return {
+    id:uid(),
+    title:title||presetName||'서명부',
+    org:ORG_DEFAULT,
+    footer:FOOTER_DEFAULT,
+    info:p.info.map(l=>({id:uid(),label:l,value:''})),
+    columns:p.columns.map(([name,type,width])=>({id:uid(),name,type,width})),
+    rows:[],
+    print:{minRows:20,rowH:10,landscape:false},
+    updated:Date.now()
+  };
+}
+function cur(){return store.sheets.find(s=>s.id===store.currentId);}
+
+function load(){
+  try{
+    const raw=localStorage.getItem(STORE_KEY);
+    if(raw){const d=JSON.parse(raw);if(d&&Array.isArray(d.sheets))store=d;}
+  }catch(e){console.error('불러오기 실패',e);}
+  if(!store.sheets.length){const s=makeSheet('기본 서명부','서명부');store.sheets.push(s);store.currentId=s.id;}
+  if(!cur())store.currentId=store.sheets[0].id;
+}
+let _saveT;
+function save(){
+  const s=cur();if(s)s.updated=Date.now();
+  clearTimeout(_saveT);
+  _saveT=setTimeout(()=>{
+    try{localStorage.setItem(STORE_KEY,JSON.stringify(store));}
+    catch(e){toast('⚠️ 저장 공간이 부족해요. 오래된 서명부를 엑셀로 내보낸 뒤 삭제해주세요.');}
+  },200);
+}
+
+// ===================== 서명부 관리 =====================
+function renderSheetSel(){
+  const sel=document.getElementById('sheet-sel');
+  sel.innerHTML=store.sheets.slice().sort((a,b)=>b.updated-a.updated)
+    .map(s=>`<option value="${s.id}"${s.id===store.currentId?' selected':''}>${esc(s.title||'(제목 없음)')} · ${s.rows.length}명</option>`).join('');
+}
+function switchSheet(id){store.currentId=id;save();renderAll();}
+function newSheet(){
+  const title=prompt('새 서명부 제목을 입력하세요','서명부');
+  if(title===null)return;
+  const s=makeSheet('기본 서명부',title.trim()||'서명부');
+  store.sheets.push(s);store.currentId=s.id;save();renderAll();toast('✅ 새 서명부를 만들었어요');
+}
+function copySheet(){
+  const s=cur();if(!s)return;
+  const withRows=s.rows.length&&confirm('명단(서명 포함)도 함께 복제할까요?\n[취소]를 누르면 양식만 복제됩니다.');
+  const c=JSON.parse(JSON.stringify(s));
+  c.id=uid();c.title=s.title+' (복사본)';
+  if(!withRows)c.rows=[];
+  store.sheets.push(c);store.currentId=c.id;save();renderAll();toast('📄 서명부를 복제했어요');
+}
+function deleteSheet(){
+  const s=cur();if(!s)return;
+  if(!confirm(`'${s.title}' 서명부를 삭제할까요?\n명단 ${s.rows.length}명이 함께 삭제되며 되돌릴 수 없어요.`))return;
+  store.sheets=store.sheets.filter(x=>x.id!==s.id);
+  if(!store.sheets.length){const n=makeSheet('기본 서명부','서명부');store.sheets.push(n);}
+  store.currentId=store.sheets[0].id;save();renderAll();toast('🗑️ 삭제했어요');
+}
+function setField(k,v){const s=cur();s[k]=v;save();if(k==='title')renderSheetSel();}
+
+function applyPreset(name){
+  if(!name)return;
+  const s=cur(),p=PRESETS[name];
+  if(s.rows.length&&!confirm(`'${name}' 양식으로 바꿀까요?\n열 이름이 같은 항목의 입력값은 유지되고, 없는 열의 값은 사라져요.`))return;
+  // 같은 이름의 열은 id를 유지해서 입력값 보존
+  const byName={};s.columns.forEach(c=>byName[c.name]=c);
+  s.columns=p.columns.map(([n,type,width])=>byName[n]&&byName[n].type===type?{...byName[n],width}:{id:uid(),name:n,type,width});
+  const infoByLabel={};s.info.forEach(i=>infoByLabel[i.label]=i);
+  s.info=p.info.map(l=>infoByLabel[l]||{id:uid(),label:l,value:''});
+  if(!s.rows.length||s.title==='서명부')s.title=name;
+  save();renderAll();toast(`📐 '${name}' 양식을 적용했어요`);
+}
+
+// ===================== 상단 구분 항목 편집 =====================
+function renderInfoEditor(){
+  const s=cur(),el=document.getElementById('info-editor');
+  if(!s.info.length){el.innerHTML='<div class="hint" style="text-align:center;margin:0;">구분 항목 없음</div>';return;}
+  el.innerHTML=s.info.map((it,i)=>`<div class="ed-item ed-info">
+    <input class="fi sm" value="${esc(it.label)}" placeholder="항목명" oninput="editInfo('${it.id}','label',this.value)">
+    <input class="fi sm" value="${esc(it.value)}" placeholder="내용 (비우면 인쇄 후 기입)" oninput="editInfo('${it.id}','value',this.value)">
+    <div class="ed-ops">
+      <button title="위로" onclick="moveInfo(${i},-1)">▲</button><button title="아래로" onclick="moveInfo(${i},1)">▼</button><button class="del" title="삭제" onclick="removeInfo('${it.id}')">✕</button>
+    </div></div>`).join('');
+}
+function addInfo(){cur().info.push({id:uid(),label:'새 항목',value:''});save();renderInfoEditor();}
+function editInfo(id,k,v){const it=cur().info.find(x=>x.id===id);if(it){it[k]=v;save();}}
+function removeInfo(id){const s=cur();s.info=s.info.filter(x=>x.id!==id);save();renderInfoEditor();}
+function moveInfo(i,d){const a=cur().info,j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];save();renderInfoEditor();}
+
+// ===================== 열 구성 편집 =====================
+function renderColEditor(){
+  const s=cur(),el=document.getElementById('col-editor');
+  el.innerHTML=`<div class="ed-item ed-col" style="background:none;border:none;padding:0 6px;font-size:10px;color:var(--txt2);font-weight:700;">
+      <span>열 이름</span><span>종류</span><span>너비</span><span></span></div>`+
+    s.columns.map((c,i)=>`<div class="ed-item ed-col">
+    <input class="fi sm" value="${esc(c.name)}" oninput="editCol('${c.id}','name',this.value)">
+    <select class="fi sm" onchange="editCol('${c.id}','type',this.value)">
+      ${Object.entries(TYPE_LABEL).map(([k,l])=>`<option value="${k}"${c.type===k?' selected':''}>${l}</option>`).join('')}
+    </select>
+    <input class="fi sm" type="number" min="3" max="60" value="${c.width}" oninput="editCol('${c.id}','width',this.value)">
+    <div class="ed-ops">
+      <button title="왼쪽으로" onclick="moveCol(${i},-1)">▲</button><button title="오른쪽으로" onclick="moveCol(${i},1)">▼</button><button class="del" title="삭제" onclick="removeCol('${c.id}')">✕</button>
+    </div></div>`).join('');
+}
+function addColumn(){cur().columns.push({id:uid(),name:'새 열',type:'text',width:12});save();renderColEditor();renderEntry();renderList();}
+function editCol(id,k,v){
+  const c=cur().columns.find(x=>x.id===id);if(!c)return;
+  if(k==='width')v=Math.max(3,Math.min(60,parseInt(v)||10));
+  if(k==='type'&&c.type!==v&&cur().rows.some(r=>r.cells[id])){
+    if(!confirm('열 종류를 바꾸면 이 열에 입력된 값이 지워져요. 계속할까요?')){renderColEditor();return;}
+    cur().rows.forEach(r=>delete r.cells[id]);
+  }
+  c[k]=v;save();
+  if(k!=='width'){renderEntry();renderList();if(k==='type')renderColEditor();}
+}
+function removeCol(id){
+  const s=cur(),c=s.columns.find(x=>x.id===id);
+  if(s.rows.some(r=>r.cells[id])&&!confirm(`'${c.name}' 열을 삭제하면 이 열의 입력값도 사라져요. 계속할까요?`))return;
+  s.columns=s.columns.filter(x=>x.id!==id);
+  s.rows.forEach(r=>delete r.cells[id]);
+  save();renderColEditor();renderEntry();renderList();
+}
+function moveCol(i,d){const a=cur().columns,j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];save();renderColEditor();renderEntry();renderList();}
+
+// ===================== 직접 입력 =====================
+function renderEntry(){
+  const s=cur();
+  const cols=s.columns.filter(c=>c.type==='text');
+  document.getElementById('entry-grid').innerHTML=cols.length?cols.map((c,i)=>`<div><label class="fl">${esc(c.name)}</label>
+    <input class="fi" data-col="${c.id}" ${i===0?'id="entry-first"':''} placeholder="${esc(c.name)}" autocomplete="off"
+      onkeydown="if(event.key==='Enter'&&!event.isComposing)addRowFromEntry()" ${/연락처|전화|휴대/.test(c.name)?'inputmode="tel" oninput="phoneMask(this)"':''}></div>`).join('')
+    :'<div class="hint">텍스트 열이 없어요. 왼쪽에서 열을 추가하세요.</div>';
+  document.getElementById('sign-after-wrap').style.display=s.columns.some(c=>c.type==='sign')?'flex':'none';
+}
+function phoneMask(el){
+  const d=el.value.replace(/\D/g,'').slice(0,11);
+  if(!/^0/.test(d)){return;}
+  el.value=d.length<4?d:d.length<8?`${d.slice(0,3)}-${d.slice(3)}`:`${d.slice(0,3)}-${d.slice(3,d.length-4)}-${d.slice(-4)}`;
+}
+function addRowFromEntry(){
+  const s=cur(),inputs=[...document.querySelectorAll('#entry-grid input[data-col]')];
+  const cells={};let any=false;
+  inputs.forEach(i=>{const v=i.value.trim();if(v){cells[i.dataset.col]=v;any=true;}});
+  if(!any){toast('입력된 내용이 없어요');return;}
+  const row={id:uid(),cells};
+  s.rows.push(row);save();
+  inputs.forEach(i=>i.value='');
+  renderList();renderSheetSel();
+  document.getElementById('entry-first')?.focus();
+  const signCol=s.columns.find(c=>c.type==='sign');
+  if(signCol&&document.getElementById('sign-after').checked)openSign(row.id,signCol.id);
+  else toast(`✅ ${s.rows.length}번 추가`);
+}
+
+// ===================== 명단 표 =====================
+function rowLabel(s,row){
+  const nameCol=s.columns.find(c=>c.type==='text'&&/이름|성명/.test(c.name))||s.columns.find(c=>c.type==='text');
+  return nameCol?(row.cells[nameCol.id]||''):'';
+}
+function renderList(){
+  const s=cur();
+  document.getElementById('list-head').innerHTML='<tr>'+s.columns.map(c=>`<th>${esc(c.name)}</th>`).join('')+'<th style="width:90px">관리</th></tr>';
+  const signCols=s.columns.filter(c=>c.type==='sign');
+  document.getElementById('list-body').innerHTML=s.rows.map((r,i)=>'<tr>'+s.columns.map(c=>{
+    if(c.type==='no')return `<td class="no">${i+1}</td>`;
+    if(c.type==='sign'){
+      const v=r.cells[c.id];
+      return `<td><div class="sign-cell">${v?`<img class="sign-img" src="${v}" alt="서명" onclick="openSign('${r.id}','${c.id}')">`:`<button class="sign-btn" onclick="openSign('${r.id}','${c.id}')">✍️ 서명</button>`}</div></td>`;
+    }
+    return `<td><input value="${esc(r.cells[c.id]||'')}" oninput="editCell('${r.id}','${c.id}',this.value)"></td>`;
+  }).join('')+`<td><div class="row-ops"><button onclick="moveRow(${i},-1)">▲</button><button onclick="moveRow(${i},1)">▼</button><button class="del" onclick="removeRow('${r.id}')">삭제</button></div></td></tr>`).join('');
+  document.getElementById('list-empty').style.display=s.rows.length?'none':'block';
+  const signed=signCols.length?s.rows.filter(r=>signCols.every(c=>r.cells[c.id])).length:0;
+  document.getElementById('stat-line').textContent=`총 ${s.rows.length}명`+(signCols.length?` · 서명 완료 ${signed}명`:'');
+}
+function editCell(rowId,colId,v){const r=cur().rows.find(x=>x.id===rowId);if(!r)return;if(v)r.cells[colId]=v;else delete r.cells[colId];save();}
+function removeRow(id){
+  const s=cur(),r=s.rows.find(x=>x.id===id);
+  if(!confirm(`${rowLabel(s,r)||'이 줄'}을(를) 명단에서 삭제할까요?`))return;
+  s.rows=s.rows.filter(x=>x.id!==id);save();renderList();renderSheetSel();
+}
+function moveRow(i,d){const a=cur().rows,j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];save();renderList();}
+function clearRows(){
+  const s=cur();if(!s.rows.length)return;
+  if(!confirm(`명단 ${s.rows.length}명을 모두 지울까요? (양식은 유지돼요)`))return;
+  s.rows=[];save();renderList();renderSheetSel();
+}
+
+// ===================== 서명 패드 =====================
+const pad=document.getElementById('pad');
+const pctx=pad.getContext('2d');
+let drawing=false,padDirty=false,last=null;
+function sizePad(){
+  const r=pad.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+  pad.width=Math.round(r.width*dpr);pad.height=Math.round(r.height*dpr);
+  pctx.setTransform(dpr,0,0,dpr,0,0);
+  pctx.lineWidth=2.6;pctx.lineCap='round';pctx.lineJoin='round';pctx.strokeStyle='#111827';
+}
+function padPos(e){const r=pad.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};}
+pad.addEventListener('pointerdown',e=>{drawing=true;padDirty=true;last=padPos(e);pad.setPointerCapture(e.pointerId);pctx.beginPath();pctx.arc(last.x,last.y,1.2,0,Math.PI*2);pctx.fillStyle='#111827';pctx.fill();});
+pad.addEventListener('pointermove',e=>{if(!drawing)return;const p=padPos(e);pctx.beginPath();pctx.moveTo(last.x,last.y);pctx.lineTo(p.x,p.y);pctx.stroke();last=p;});
+['pointerup','pointercancel','pointerleave'].forEach(t=>pad.addEventListener(t,()=>{drawing=false;}));
+function clearPad(){pctx.clearRect(0,0,pad.width,pad.height);padDirty=false;}
+function openSign(rowId,colId){
+  const s=cur(),r=s.rows.find(x=>x.id===rowId),c=s.columns.find(x=>x.id===colId);
+  if(!r||!c)return;
+  signTarget={rowId,colId};
+  const idx=s.rows.indexOf(r)+1;
+  document.getElementById('pad-who').textContent=`${idx}. ${rowLabel(s,r)||''} — ${c.name}`;
+  document.getElementById('pad-remove').style.display=r.cells[colId]?'inline-block':'none';
+  document.getElementById('ov-sign').classList.add('open');
+  requestAnimationFrame(()=>{sizePad();clearPad();});
+}
+function closeSign(){document.getElementById('ov-sign').classList.remove('open');signTarget=null;}
+function trimmedSignature(){
+  // 여백을 잘라내고 작은 크기로 저장해 저장공간을 아낌
+  const w=pad.width,h=pad.height,data=pctx.getImageData(0,0,w,h).data;
+  let x0=w,y0=h,x1=-1,y1=-1;
+  for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){if(data[(y*w+x)*4+3]>0){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}
+  if(x1<0)return null;
+  const pad2=8;x0=Math.max(0,x0-pad2);y0=Math.max(0,y0-pad2);x1=Math.min(w,x1+pad2);y1=Math.min(h,y1+pad2);
+  const sw=x1-x0,sh=y1-y0,scale=Math.min(1,100/sh,320/sw);
+  const out=document.createElement('canvas');out.width=Math.max(1,Math.round(sw*scale));out.height=Math.max(1,Math.round(sh*scale));
+  out.getContext('2d').drawImage(pad,x0,y0,sw,sh,0,0,out.width,out.height);
+  return out.toDataURL('image/png');
+}
+function saveSign(){
+  if(!signTarget)return;
+  if(!padDirty){toast('서명을 해주세요');return;}
+  const img=trimmedSignature();if(!img){toast('서명을 해주세요');return;}
+  const r=cur().rows.find(x=>x.id===signTarget.rowId);
+  if(r){r.cells[signTarget.colId]=img;save();}
+  closeSign();renderList();toast('✍️ 서명 저장 완료');
+}
+function removeSign(){
+  if(!signTarget||!confirm('저장된 서명을 삭제할까요?'))return;
+  const r=cur().rows.find(x=>x.id===signTarget.rowId);
+  if(r){delete r.cells[signTarget.colId];save();}
+  closeSign();renderList();
+}
+
+// ===================== 엑셀 불러오기 =====================
+let importMode='new';
+function pickExcel(mode){
+  if(typeof XLSX==='undefined'){toast('엑셀 모듈을 불러오지 못했어요. 인터넷 연결을 확인하세요.');return;}
+  importMode=mode;const f=document.getElementById('xl-file');f.value='';f.click();
+}
+function cellStr(v){
+  if(v==null)return '';
+  if(v instanceof Date)return v.toLocaleDateString('ko-KR');
+  return String(v).trim();
+}
+function guessType(name){
+  const n=name.replace(/\s/g,'');
+  if(/^(순번|번호|연번|no\.?|#)$/i.test(n))return 'no';
+  if(/서명|사인|sign|확인란|날인/i.test(n))return 'sign';
+  return 'text';
+}
+function findHeaderRow(aoa){
+  const filled=r=>(r||[]).filter(v=>cellStr(v)!=='').length;
+  const nameIdx=aoa.findIndex(r=>filled(r)>=2&&(r||[]).some(v=>/^(이름|성명|성 명|이 름|name)$/i.test(cellStr(v))));
+  if(nameIdx>=0)return nameIdx;
+  return aoa.findIndex(r=>filled(r)>=2);
+}
+function onExcelFile(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  const fr=new FileReader();
+  fr.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true,cellStyles:true});
+      importWorkbook(wb,file.name.replace(/\.[^.]+$/,''));
+    }catch(err){console.error(err);toast('엑셀 파일을 읽지 못했어요: '+err.message);}
+  };
+  fr.readAsArrayBuffer(file);
+}
+function importWorkbook(wb,fileTitle){
+  const skip=/^(설정|안내|사용방법|사용 방법|정보)$/;
+  const listName=wb.SheetNames.find(n=>!skip.test(n.trim()))||wb.SheetNames[0];
+  const aoa=XLSX.utils.sheet_to_json(wb.Sheets[listName],{header:1,raw:false,defval:''});
+  const hIdx=findHeaderRow(aoa);
+  if(hIdx<0){toast('명단 머리글(예: 순번, 이름, 서명)을 찾지 못했어요');return;}
+  const header=aoa[hIdx].map(cellStr);
+  // 머리글 위의 한 칸짜리 줄은 제목으로 사용
+  const titleLine=aoa.slice(0,hIdx).map(r=>(r||[]).map(cellStr).filter(Boolean)).find(r=>r.length===1);
+
+  // '설정' 시트: [항목, 값]
+  const meta={};const info=[];
+  const setName=wb.SheetNames.find(n=>/^(설정|정보)$/.test(n.trim()));
+  if(setName){
+    XLSX.utils.sheet_to_json(wb.Sheets[setName],{header:1,raw:false,defval:''}).forEach(r=>{
+      const k=cellStr(r[0]),v=cellStr(r[1]);
+      if(!k||k==='항목'||/^[※#*]/.test(k))return;
+      if(k==='제목'||k==='서명부 제목')meta.title=v;
+      else if(k==='기관명')meta.org=v;
+      else if(k==='하단문구'||k==='하단 문구')meta.footer=v;
+      else info.push({id:uid(),label:k,value:v});
+    });
+  }
+
+  const colIdx=[];header.forEach((h,i)=>{if(h)colIdx.push(i);});
+  const s=cur();
+  let target;
+  if(importMode==='new'){
+    target=makeSheet('기본 서명부');
+    target.title=meta.title||(titleLine&&titleLine[0])||fileTitle||'서명부';
+    if(meta.org!==undefined)target.org=meta.org;
+    if(meta.footer!==undefined)target.footer=meta.footer;
+    if(setName)target.info=info;
+    // 엑셀 열 너비가 있으면 그대로 비율로 사용
+    const xlCols=wb.Sheets[listName]['!cols']||[];
+    target.columns=colIdx.map(i=>{
+      const type=guessType(header[i]),wch=xlCols[i]&&(xlCols[i].wch||xlCols[i].width);
+      const width=wch?Math.max(3,Math.min(60,Math.round(wch))):type==='no'?6:type==='sign'?16:Math.max(8,Math.min(24,header[i].length*3+6));
+      return {id:uid(),name:header[i],type,width};
+    });
+  }else{
+    target=s;
+  }
+  // 엑셀 열 → 서명부 열 매칭 (이름 기준, 새 서명부면 순서대로)
+  let missed=0;
+  const map=colIdx.map((xi,k)=>{
+    const col=importMode==='new'?target.columns[k]:target.columns.find(c=>c.name.replace(/\s/g,'')===header[xi].replace(/\s/g,''));
+    if(!col){missed++;return null;}
+    return col.type==='text'?{xi,colId:col.id}:null;
+  }).filter(Boolean);
+  if(!map.length){toast('현재 서명부와 일치하는 열 이름이 없어요');return;}
+
+  let added=0;
+  aoa.slice(hIdx+1).forEach(r=>{
+    const cells={};
+    map.forEach(({xi,colId})=>{const v=cellStr(r[xi]);if(v)cells[colId]=v;});
+    if(Object.keys(cells).length){target.rows.push({id:uid(),cells});added++;}
+  });
+
+  if(importMode==='new'){store.sheets.push(target);store.currentId=target.id;}
+  save();renderAll();
+  toast((added?`📥 ${added}명을 불러왔어요`:'📥 엑셀 양식을 불러왔어요 (명단 없음)')+(missed>0?` (일치하지 않는 열 ${missed}개 제외)`:''));
+}
+
+// ===================== 엑셀 내보내기 =====================
+function buildWorkbook(s,withRows){
+  const wb=XLSX.utils.book_new();
+  const header=s.columns.map(c=>c.name);
+  const aoa=[[s.title],[],header];
+  const rows=withRows?s.rows:[];
+  rows.forEach((r,i)=>aoa.push(s.columns.map(c=>c.type==='no'?i+1:c.type==='sign'?(r.cells[c.id]?'서명완료':''):(r.cells[c.id]||''))));
+  if(!withRows)for(let i=0;i<30;i++)aoa.push(s.columns.map(c=>c.type==='no'?i+1:''));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=s.columns.map(c=>({wch:Math.max(6,Math.round(c.width*0.9))}));
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:Math.max(0,header.length-1)}}];
+  XLSX.utils.book_append_sheet(wb,ws,'서명부');
+  const set=[['항목','값'],['제목',s.title],['기관명',s.org],['하단문구',s.footer],...s.info.map(i=>[i.label,i.value])];
+  const ws2=XLSX.utils.aoa_to_sheet(set);ws2['!cols']=[{wch:16},{wch:40}];
+  XLSX.utils.book_append_sheet(wb,ws2,'설정');
+  return wb;
+}
+function safeName(t){return (t||'서명부').replace(/[\\/:*?"<>|]/g,'_');}
+function exportExcel(){
+  if(typeof XLSX==='undefined'){toast('엑셀 모듈을 불러오지 못했어요');return;}
+  const s=cur();
+  XLSX.writeFile(buildWorkbook(s,true),`${safeName(s.title)}_${todayStr().replace(/[.\s]/g,'')}.xlsx`);
+  toast('⬇️ 엑셀로 내보냈어요 (서명 이미지는 "서명완료"로 표시)');
+}
+function downloadTemplate(){
+  if(typeof XLSX==='undefined'){toast('엑셀 모듈을 불러오지 못했어요');return;}
+  const s=cur();
+  XLSX.writeFile(buildWorkbook(s,false),`${safeName(s.title)}_양식.xlsx`);
+  toast('📄 현재 양식으로 엑셀 파일을 만들었어요');
+}
+
+// ===================== 인쇄 =====================
+function openPrint(){
+  const p=cur().print||{minRows:20,rowH:10,landscape:false};
+  document.getElementById('p-min').value=p.minRows;
+  document.getElementById('p-h').value=p.rowH;
+  document.getElementById('p-land').checked=!!p.landscape;
+  renderPrintPreview();
+  document.getElementById('ov-print').classList.add('open');
+}
+function readPrintOpts(){
+  const s=cur();
+  s.print={
+    minRows:Math.max(0,Math.min(300,parseInt(document.getElementById('p-min').value)||0)),
+    rowH:Math.max(6,Math.min(25,parseInt(document.getElementById('p-h').value)||10)),
+    landscape:document.getElementById('p-land').checked
+  };
+  save();return s.print;
+}
+function buildPrintHtml(s,opt){
+  const total=s.columns.reduce((a,c)=>a+(+c.width||10),0)||1;
+  const colgroup='<colgroup>'+s.columns.map(c=>`<col style="width:${((+c.width||10)/total*100).toFixed(2)}%">`).join('')+'</colgroup>';
+  const n=Math.max(s.rows.length,opt.minRows);
+  let body='';
+  for(let i=0;i<n;i++){
+    const r=s.rows[i];
+    body+=`<tr style="height:${opt.rowH}mm">`+s.columns.map(c=>{
+      if(c.type==='no')return `<td class="c">${i+1}</td>`;
+      if(!r)return '<td></td>';
+      const v=r.cells[c.id];
+      if(c.type==='sign')return `<td class="c">${v?`<img src="${v}" style="max-height:${opt.rowH-2}mm;max-width:100%;vertical-align:middle;">`:''}</td>`;
+      return `<td>${esc(v||'')}</td>`;
+    }).join('')+'</tr>';
+  }
+  // 상단 구분: 2개씩 한 줄
+  let info='';
+  if(s.info.length){
+    info='<table class="info">';
+    for(let i=0;i<s.info.length;i+=2){
+      const a=s.info[i],b=s.info[i+1];
+      info+=`<tr><th>${esc(a.label)}</th><td${b?'':' colspan="3"'}>${esc(a.value)}</td>${b?`<th>${esc(b.label)}</th><td>${esc(b.value)}</td>`:''}</tr>`;
+    }
+    info+='</table>';
+  }
+  return `<div class="sheet">
+    <div class="ttl">
+      ${s.org?`<div class="org">${esc(s.org)}</div>`:''}
+      <div class="main">${esc(s.title)}</div>
+    </div>
+    ${info}
+    <table class="list">${colgroup}
+      <thead><tr>${s.columns.map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr></thead>
+      <tbody>${body||`<tr><td colspan="${s.columns.length}" class="c">명단 없음</td></tr>`}</tbody>
+    </table>
+    ${s.footer?`<div class="foot">${esc(s.footer)}</div>`:''}
+  </div>`;
+}
+const PRINT_CSS=`
+  .sheet{font-family:'Noto Sans KR','Malgun Gothic',sans-serif;color:#111827;padding:6px;}
+  .sheet .ttl{text-align:center;border-bottom:3px double #1a6b3c;padding-bottom:10px;margin-bottom:10px;}
+  .sheet .org{font-size:11px;color:#6b7280;margin-bottom:4px;}
+  .sheet .main{font-size:22px;font-weight:900;color:#1a6b3c;letter-spacing:4px;}
+  .sheet table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  .sheet th,.sheet td{border:1px solid #9ca3af;padding:3px 6px;font-size:11px;word-break:break-all;}
+  .sheet .info{margin-bottom:10px;}
+  .sheet .info th{background:#e8f5ee;color:#1a6b3c;width:15%;text-align:center;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .sheet .info td{height:8mm;}
+  .sheet .list th{background:#1a6b3c;color:#fff;text-align:center;font-weight:700;padding:6px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .sheet .list thead{display:table-header-group;}
+  .sheet .list tr{page-break-inside:avoid;}
+  .sheet td.c{text-align:center;}
+  .sheet .foot{margin-top:10px;text-align:center;font-size:10px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:6px;}
+`;
+function renderPrintPreview(){
+  const opt=readPrintOpts();
+  document.getElementById('print-preview').innerHTML=`<style>${PRINT_CSS}</style>`+buildPrintHtml(cur(),opt);
+}
+function doPrint(){
+  const s=cur(),opt=readPrintOpts();
+  const w=window.open('','_blank','width=900,height=700');
+  if(!w){toast('팝업이 차단되었어요. 팝업을 허용해주세요.');return;}
+  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${esc(s.title)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>*{box-sizing:border-box;margin:0;padding:0;}${PRINT_CSS}
+  @media print{@page{size:A4 ${opt.landscape?'landscape':'portrait'};margin:10mm;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style>
+  </head><body>${buildPrintHtml(s,opt)}</body></html>`);
+  w.document.close();w.focus();setTimeout(()=>w.print(),800);
+}
+
+// ===================== 공통 =====================
+function closeOv(id){document.getElementById(id).classList.remove('open');}
+let _tt;
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),3000);}
+function renderAll(){
+  const s=cur();
+  document.getElementById('f-title').value=s.title||'';
+  document.getElementById('f-org').value=s.org||'';
+  document.getElementById('f-footer').value=s.footer||'';
+  renderSheetSel();renderInfoEditor();renderColEditor();renderEntry();renderList();
+}
+document.getElementById('preset-sel').innerHTML+=Object.keys(PRESETS).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+window.addEventListener('resize',()=>{if(document.getElementById('ov-sign').classList.contains('open')&&!padDirty)sizePad();});
+window.addEventListener('beforeunload',()=>{try{localStorage.setItem(STORE_KEY,JSON.stringify(store));}catch(e){}});
+load();renderAll();
+</script>
+</body>
+</html>
